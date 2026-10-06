@@ -438,26 +438,19 @@
     :root{--skaerm:100dvh}
     .telefon{max-width:none;box-shadow:none}
   }
-  /* PÅ HJEMMESKÆRMEN (K22, Kennets iPhone 6/10): en creme bjælke i bunden,
-     præcis så høj som statuslinjen. Safari tegner appen helt op under uret
-     (black-translucent), men regner 100dvh UDEN statuslinjen — så appen
-     sluttede en statuslinje for tidligt. Kendt WebKit-fejl, og den opfører sig
-     forskelligt fra iOS-version til iOS-version (bugs.webkit.org 301994):
-       · Kennets: siden fylder skærmen, dvh er kort      → dvh + top = skærmen
-       · 26.1-varianten: systemet holder toppen fri, top = 0 → dvh + 0 = rigtigt
-       · rettet: dvh er hele skærmen                      → lvh tager over i min()
-     lvh måles fra skærmens top og er derfor loftet. På Android er top 0 og
-     lvh = dvh, så intet ændrer sig.
-     FAST, IKKE KLIPPET (rettet samme aften): første forsøg satte
-     html,body{overflow:hidden}. Men body er OGSÅ en statuslinje for kort
-     (height:100%), og så klippede body appen af præcis dér — bjælken blev
-     stående. En fast ramme hænger ikke på body, fylder ikke i sidens
-     rulleflade (siden kan ikke rulle; det gør .indhold), og overlejringerne
-     får samme højde. */
+  /* PÅ HJEMMESKÆRMEN (K22, Kennets iPhone 6/10): en creme bjælke under
+     bundmenuen, ca. 60 punkter høj. Den ligger UDEN FOR websiden: iPhone giver
+     siden 812 af skærmens 874 punkter og fylder resten selv med sidens
+     baggrundsfarve, som den husker fra opstarten (WebKit-fejl 301994). Intet
+     element kan tegne dér.
+     To forsøg samme aften gjorde appen højere (dvh + statuslinje, så en fast
+     ramme) — begge skød bundmenuen ned i det døde felt, hvor den blev skåret
+     over. Gør det ikke igen. Den eneste knap er FARVEN: siden får bundmenuens
+     farve, så feltet går i ét med menuen. --side-bund sættes af appTema(),
+     fordi menuens farve følger døgnets lys. Kun på hjemmeskærmen; i en browser
+     står siden, som den altid har gjort. */
   @media(display-mode:standalone){
-    :root{--skaerm:min(calc(100dvh + env(safe-area-inset-top,0px)), 100lvh)}
-    .telefon{position:fixed;top:0;left:0;right:0}
-    body>.modal-bag,body>.foto-lup{bottom:auto;height:var(--skaerm)}   /* body> vinder over basisreglerne længere nede */
+    html,body{background:var(--side-bund,var(--p-deep-brown))}
   }
   .indhold{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 0 118px;scroll-behavior:smooth;position:relative;z-index:1}
   .side{padding:22px 22px 0}

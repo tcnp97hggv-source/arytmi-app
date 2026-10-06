@@ -9829,14 +9829,23 @@ function temaValg(){
 function appTema(){
   const vært = document.querySelector('.telefon');
   if(!vært) return;
-  if(temaValg() !== 'døgn'){ vært.dataset.tema = 'lys'; return; }
-  try {
-    const lys = sceneLys(sceneTid(new Date()), sceneGeo());
-    vært.dataset.tema = lys.andel < .5 ? lys.fra : lys.til;
-  } catch(e){
-    /* Kan lyset ikke beregnes, står appen i dagens flade frem for ingenting. */
-    vært.dataset.tema = 'lys';
+  let tema = 'lys';
+  if(temaValg() === 'døgn'){
+    try {
+      const lys = sceneLys(sceneTid(new Date()), sceneGeo());
+      tema = lys.andel < .5 ? lys.fra : lys.til;
+    } catch(e){
+      /* Kan lyset ikke beregnes, står appen i dagens flade frem for ingenting. */
+    }
   }
+  vært.dataset.tema = tema;
+  /* Sidens baggrund = bundmenuens farve (K22). På iPhone fra hjemmeskærmen
+     fylder systemet et felt under siden med netop den farve — se
+     display-mode:standalone i app.css. */
+  try {
+    document.documentElement.style.setProperty('--side-bund',
+      getComputedStyle(vært).getPropertyValue('--nav-flade').trim());
+  } catch(e){ /* så står den mørkebrune faldbak */ }
 }
 let vkObservatør = null;
 /* Hoppet (KN 28/9) kører én gang pr. opstart. Flaget sættes først, når
