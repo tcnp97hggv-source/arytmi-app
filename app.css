@@ -447,10 +447,17 @@
        · 26.1-varianten: systemet holder toppen fri, top = 0 → dvh + 0 = rigtigt
        · rettet: dvh er hele skærmen                      → lvh tager over i min()
      lvh måles fra skærmens top og er derfor loftet. På Android er top 0 og
-     lvh = dvh, så intet ændrer sig. html/body ruller ikke — det gør .indhold. */
+     lvh = dvh, så intet ændrer sig.
+     FAST, IKKE KLIPPET (rettet samme aften): første forsøg satte
+     html,body{overflow:hidden}. Men body er OGSÅ en statuslinje for kort
+     (height:100%), og så klippede body appen af præcis dér — bjælken blev
+     stående. En fast ramme hænger ikke på body, fylder ikke i sidens
+     rulleflade (siden kan ikke rulle; det gør .indhold), og overlejringerne
+     får samme højde. */
   @media(display-mode:standalone){
     :root{--skaerm:min(calc(100dvh + env(safe-area-inset-top,0px)), 100lvh)}
-    html,body{overflow:hidden}
+    .telefon{position:fixed;top:0;left:0;right:0}
+    body>.modal-bag,body>.foto-lup{bottom:auto;height:var(--skaerm)}   /* body> vinder over basisreglerne længere nede */
   }
   .indhold{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 0 118px;scroll-behavior:smooth;position:relative;z-index:1}
   .side{padding:22px 22px 0}
@@ -2459,9 +2466,6 @@
   .vk-vater.i-vater{--vk-i-vater:color-mix(in srgb,var(--p-petrol) 45%,var(--p-warm-cream));
     background:radial-gradient(circle,var(--vk-i-vater) 0,var(--vk-i-vater) 46%,var(--bund) 47%)}
   .vk-vater.i-vater .vk-boble{background:var(--anker);border-color:var(--anker)}
-  /* Midlertidig målevisning til admins (6/10) — se vkDiagNoter i app.js. */
-  .vk-diag{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:var(--flade-dyb);
-    font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;text-align:left;white-space:pre;color:var(--tekst)}
   .vk-aflæsninger{display:flex;margin:16px 0 18px}
   .vk-aflæsninger > div{width:50%;display:flex;flex-direction:column;gap:2px}
   .vk-aflæsninger > div + div{border-left:1px solid var(--linje)}

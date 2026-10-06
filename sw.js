@@ -30,7 +30,7 @@
    Siden app.js kun registrerer den over https (eller med et flag lokalt),
    kører den ALDRIG i Capacitor-appen og aldrig i navigationstesten. */
 
-const UDGAVE = 'ee91bf34e70a';   // ← lav-www.js: indholdets fingeraftryk
+const UDGAVE = '46ff12d87212';   // ← lav-www.js: indholdets fingeraftryk
 const SKAL = ["app.css","app.js","auth.js","brand/arytmi_logo_2026/arytmi_brun.svg","brand/arytmi_logo_2026/arytmi_creme.svg","brand/arytmi_logo_2026/favicon/arytmi_A.svg","brand/arytmi_logo_2026/favicon/arytmi_A_180.png","brand/arytmi_logo_2026/favicon/arytmi_A_192.png","brand/arytmi_logo_2026/favicon/arytmi_A_256.png","brand/arytmi_logo_2026/favicon/arytmi_A_32.png","brand/arytmi_logo_2026/favicon/arytmi_A_512.png","brand/arytmi_logo_2026/favicon/arytmi_A_maskable_512.png","brand/arytmi_logo_2026/signaturbil.svg","byer.js","fejl.js","fonts/OFL-Fraunces.txt","fonts/OFL-Inter.txt","fonts/fraunces.woff2","fonts/inter.woff2","geo.js","index.html","manifest.webmanifest","model.js","redaktoer-plader.js","redaktoer.js","sync.js","tekstdata.js","vaerktoejskasse/adapters.js","vaerktoejskasse/core.js","vendor/leaflet/leaflet.css","vendor/leaflet/leaflet.js","vendor/supabase/supabase.js"];              // ← lav-www.js: appens faste filer
 
 const SKAL_CACHE = 'arytmi-skal-' + UDGAVE;
