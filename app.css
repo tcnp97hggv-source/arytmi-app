@@ -438,6 +438,20 @@
     :root{--skaerm:100dvh}
     .telefon{max-width:none;box-shadow:none}
   }
+  /* PÅ HJEMMESKÆRMEN (K22, Kennets iPhone 6/10): en creme bjælke i bunden,
+     præcis så høj som statuslinjen. Safari tegner appen helt op under uret
+     (black-translucent), men regner 100dvh UDEN statuslinjen — så appen
+     sluttede en statuslinje for tidligt. Kendt WebKit-fejl, og den opfører sig
+     forskelligt fra iOS-version til iOS-version (bugs.webkit.org 301994):
+       · Kennets: siden fylder skærmen, dvh er kort      → dvh + top = skærmen
+       · 26.1-varianten: systemet holder toppen fri, top = 0 → dvh + 0 = rigtigt
+       · rettet: dvh er hele skærmen                      → lvh tager over i min()
+     lvh måles fra skærmens top og er derfor loftet. På Android er top 0 og
+     lvh = dvh, så intet ændrer sig. html/body ruller ikke — det gør .indhold. */
+  @media(display-mode:standalone){
+    :root{--skaerm:min(calc(100dvh + env(safe-area-inset-top,0px)), 100lvh)}
+    html,body{overflow:hidden}
+  }
   .indhold{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 0 118px;scroll-behavior:smooth;position:relative;z-index:1}
   .side{padding:22px 22px 0}
   /* Fri af uret og kameraøen. En hero øverst på skærmen trækkes op under
