@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "Arytmi",
+  "short_name": "Arytmi",
+  "description": "Vælg mindre. Oplev mere.",
+  "lang": "da",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#4a2417",
+  "theme_color": "#4a2417",
+  "icons": [
+    { "src": "brand/arytmi_logo_2026/favicon/arytmi_A_192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "brand/arytmi_logo_2026/favicon/arytmi_A_512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "brand/arytmi_logo_2026/favicon/arytmi_A_maskable_512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

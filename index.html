@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- ═══ SIKKERHEDSPOLITIK (CSP) — lagt på 18/9 ════════════════════════════
+     Appen havde ingen. Det betød, at et indsprøjtet script kunne sende
+     sessionstokenet fra localStorage hvorhen det ville. Den her politik
+     fanger ikke selve indsprøjtningen (se 'unsafe-inline' nedenfor), men
+     den lukker UDGANGEN: connect-src tillader kun vores egen Supabase og
+     adresseregistret, så der ikke er nogen at sende det til.
+
+     LINJE FOR LINJE, så ingen kommer til at løsne noget ved et uheld:
+
+     · default-src 'none' — alt er forbudt, indtil det står nedenfor.
+       Kommer der en ny slags ressource (en lyd, en iframe, et manifest),
+       bliver den blokeret, og det ER meningen: så skal nogen tage stilling.
+
+     · script-src 'unsafe-inline' — nødvendig I DAG, fordi app.js tegner
+       med onclick="..." i skabelonerne. Det er den halvdel, der mangler,
+       og den kan kun lukkes ved at lave alle onclick om til
+       event-listeners. Stort arbejde i en fil på 466 KB, og det hører
+       ikke hjemme under DAWA-fristen. Er det gjort, så fjern ordet her.
+
+     · style-src 'unsafe-inline' — style="..." står i skabelonerne samme
+       sted. Væsentligt mindre farlig end script.
+
+     · img-src — vores egne filer, data: (to ikoner i app.css), Supabase
+       (stedbilleder) og kortfliserne. {s} i tileLayer bliver til a/b/c,
+       derfor jokertegnet.
+
+     · connect-src — wss:// SKAL stå der ved siden af https://. CSP matcher
+       på skema, og delingen mellem rejsemakkere kører over en websocket
+       (sync.js, kanalen 'arytmi-deling'). Uden den linje holder delingen
+       op med at virke, og fejlen ser ud som et netværksproblem.
+
+     · https://arytmi.com og 'wasm-unsafe-eval' (KN 5/10: "fint med, at
+       sikkerhedspolitikken åbner"). Editorens billedupload slører
+       nummerplader med en motor, der hentes fra bagrummet på arytmi.com
+       (redaktoer-plader.js): scriptet og dets .mjs i script-src, modellen
+       og .wasm-filen i connect-src, og 'wasm-unsafe-eval' for at måtte
+       oversætte WebAssembly. Det er IKKE 'unsafe-eval' — almindelig eval()
+       er stadig spærret. Kun admins henter motoren, men politikken gælder
+       alle; åbningen er arytmi.com, som vi selv udgiver.
+
+     · manifest-src og worker-src (K22, 6/10) — Arytmi på hjemmeskærmen.
+       Manifestet (navn, ikon, fuld skærm) og service workeren (sw.js) er
+       begge vores egne filer. Uden de to linjer blokerer default-src 'none'
+       dem LYDLØST: siden virker, men den kan ikke lægges på hjemmeskærmen
+       og starter ikke uden net.
+
+     · frame-ancestors er IKKE med — den ignoreres i et <meta> og virker
+       kun som en ægte HTTP-header. Den ville bare give en advarsel i
+       konsollen, og en konsol med støj i koster tid næste gang noget
+       går galt. Appen kører i en webview på https://localhost og kan
+       ikke indrammes alligevel.
+
+     ⚠️ PRØV DEN PÅ EN RIGTIG TELEFON, ikke kun på 8641. Capacitor lægger
+     sin egen bro ind i webviewen, og en CSP, der er for stram, slår den
+     ihjel — lydløst, med en app der bare står tom. Byg med `npm run apk`
+     og se, at kortet tegner, at en adresse kan søges, og at delingen
+     stadig kommer igennem. -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://arytmi.com;
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' data: https://vxleyvtumbwtkejoiaev.supabase.co https://*.tile.openstreetmap.org;
+  font-src 'self';
+  manifest-src 'self';
+  worker-src 'self';
+  connect-src https://vxleyvtumbwtkejoiaev.supabase.co wss://vxleyvtumbwtkejoiaev.supabase.co https://adressevaelger.dk https://arytmi.com;
+  base-uri 'none';
+  form-action 'none';
+  object-src 'none'">
+<title>ARYTMI — vælg mindre, oplev mere</title>
+<meta name="theme-color" content="#4a2417">
+<link rel="icon" type="image/png" sizes="32x32" href="brand/arytmi_logo_2026/favicon/arytmi_A_32.png">
+<link rel="icon" type="image/png" sizes="256x256" href="brand/arytmi_logo_2026/favicon/arytmi_A_256.png">
+<link rel="icon" type="image/svg+xml" href="brand/arytmi_logo_2026/favicon/arytmi_A.svg">
+<link rel="apple-touch-icon" href="brand/arytmi_logo_2026/favicon/arytmi_A_180.png">
+<!-- Hjemmeskærmen (K22, 6/10): navn, ikon og fuld skærm. Se sw.js. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Arytmi">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Leaflet ligger lokalt siden 0.6. Den kom før fra unpkg uden SRI: det virker
+     ikke i en pakket app, og det er tredjepartskode i produktionsstien, som en
+     fremmed server kan skifte ud under os. Samme 1.9.4, nu fra vores egen mappe. -->
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<script src="vendor/leaflet/leaflet.js"></script>
+<!-- Appens egne skrifter. crossorigin SKAL med, selvom filerne ligger på samme
+     server — fonte hentes altid anonymt, og uden den henter browseren dem to gange. -->
+<link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
+<!-- ?v= skal bumpes ved hver ændring i app.css/app.js. Uden den viser browseren
+     (og GitHub Pages) den gamle fil — se Arytmi-status.md om cache-fælden. -->
+<link rel="stylesheet" href="app.css?v=20261006a">
+</head>
+<body>
+<div class="telefon">
+  <div class="succes-flash" id="flash"></div>
+  <!-- Landskabet følger med rundt i appen — dæmpet, bag alt indhold -->
+  <div class="app-baggrund" aria-hidden="true">
+    <svg class="bg-bund" viewBox="0 0 430 170" preserveAspectRatio="none">
+      <path d="M0 54 C60 30 120 44 180 36 C250 27 300 50 350 40 C390 33 415 40 430 36 V170 H0 Z" fill="#3a3227" opacity=".055"/>
+      <path d="M0 88 C70 68 130 84 200 74 C280 63 330 86 430 70 V170 H0 Z" fill="#3a3227" opacity=".075"/>
+      <path d="M0 126 C90 110 180 126 270 118 C340 112 400 122 430 116 V170 H0 Z" fill="#3a3227" opacity=".1"/>
+    </svg>
+    <svg class="bg-traeer" viewBox="0 0 430 170" preserveAspectRatio="none">
+      <g fill="#3a3227" opacity=".085">
+        <path d="m36 92 8-16 8 16zM38 79l6-12 6 12z"/>
+        <path d="m388 84 7-14 7 14zM390 73l5-10 5 10z"/>
+      </g>
+    </svg>
+  </div>
+  <div class="indhold" id="indhold"></div>
+  <nav class="bundnav" id="bundnav"></nav>
+</div>
+
+<!-- Værktøjskassens motor (KN 6/9). SKAL ligge før app.js — appen henter
+     ArytmiToolboxCore og ArytmiToolboxAdapters fra window. Selvstændig pakke
+     med egne tests: kør `npm test` i vaerktoejskasse/. -->
+<!-- Datalaget. SKAL indlæses før app.js — app.js kaster med det samme, hvis den
+     mangler, i stedet for stille at starte på en tom tilstand. -->
+<!-- Supabase-biblioteket, hentet ind i vendor/ og ikke fra et CDN: en pakket app
+     har ikke internet, når den starter. Det SKAL ligge før auth.js. -->
+<script src="vendor/supabase/supabase.js"></script>
+<!-- Nettet under appen. FOERST af alle vores egne filer, og med vilje: den
+     skal staa, foer der er noget, der kan naa at gaa i stykker. Den roerer
+     ikke DOM'en og goer ingenting, foer app.js starter den. -->
+<script src="fejl.js?v=20260924a"></script>
+<script src="model.js?v=20261005a"></script>
+<!-- Omregningen fra adresseregistrets koordinater til kortets. SKAL ligge
+     foer app.js, som henter ArytmiGeo fra window naar en adresse vaelges.
+     Egne proever: node --test test/geo.test.js -->
+<script src="geo.js?v=20260924a"></script>
+<!-- Danmarks byer, pakket ind i appen. Bysoegningen slaar op HER og ikke
+     ude i verden: adresseregistret kender ikke byer, kun veje. Se byer.js. -->
+<script src="byer.js?v=20260924a"></script>
+<script src="vaerktoejskasse/core.js?v=20260924a"></script>
+<script src="vaerktoejskasse/adapters.js?v=20261006a"></script>
+<script src="auth.js?v=20261004b"></script>
+<!-- Udbakken. Efter auth.js, foer app.js: den henter sin klient fra
+     ArytmiAuth. Uden en klient goer den ingenting, og appen koerer videre. -->
+<script src="sync.js?v=20261005c"></script>
+<!-- Editor-tilstanden (KN 5/10). Efter auth.js, foer app.js. Goer intet for en
+     kunde: den kaldes kun, naar en admin slaar editoren til i profilen. -->
+<!-- Listernes tekstnøgler (5/10). FØR app.js — app.js bygger listerne med den. -->
+<script src="tekstdata.js?v=20261005a"></script>
+<script src="redaktoer.js?v=20261005b"></script>
+<script src="redaktoer-plader.js?v=20261005b"></script>
+<script src="app.js?v=20261006a"></script>
+</body>
+</html>
