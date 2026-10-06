@@ -10083,6 +10083,7 @@ function skærmVærktøjNiveau(){
         ? t('vk.relativnul','Relativt nulpunkt: du sammenligner med den flade, du selv valgte.')
         : t('vk.vandretnul','Måler i forhold til vandret. Lige ved højst 0,5° samlet hældning.')}</p>
       ${vkStatuslinje()}
+      ${s.profil.rolle === 'admin' ? '<pre class="vk-diag" data-vk-diag></pre>' : ''}
     </div>
     <p class="dæmpet" style="font-size:12.5px">${t('vk.niveaunote','Læg telefonen fladt med skærmen opad — helst uden cover, og ikke på kamerabulen. En madras eller et sæde giver et andet svar end gulvet.')}</p>
     ${vkFod()}
@@ -10090,6 +10091,35 @@ function skærmVærktøjNiveau(){
   vkMalNiveau();
 }
 function vkGrader(v){ return `${Math.abs(v) < 0.05 ? '0,0' : v.toFixed(1).replace('.',',')}°`; }
+/* ⚠️ MIDLERTIDIG MÅLEVISNING (Kennet 6/10) — fjernes, når fejlen er fundet.
+   På iPhone fra hjemmeskærmen viste vateret "to bobler": aflæsningerne skifter
+   mellem to værdier, hurtigere end et skærmbillede kan fange. Koden selv er
+   stabil (prøvet med en stille måling i jsdom), så det er sensorens rå tal, vi
+   skal se. Kun for admins: ét sekund ad gangen, antal aflæsninger og mindste
+   og største værdi pr. akse (m/s², efter fortegnsrettelsen i adapteren) og de
+   skærmvinkler, der blev meldt. Tekst står stille på et skærmbillede. */
+let vkDiag = null;
+function vkDiagNoter(v){
+  if(s.profil.rolle !== 'admin') return;
+  const sk = window.screen && window.screen.orientation;
+  const vinkel = (sk && sk.angle != null) ? sk.angle : window.orientation;
+  if(!vkDiag) vkDiag = { n:0, min:{ x:Infinity, y:Infinity, z:Infinity }, max:{ x:-Infinity, y:-Infinity, z:-Infinity }, vinkler:new Set() };
+  vkDiag.n++;
+  for(const a of ['x','y','z']){
+    vkDiag.min[a] = Math.min(vkDiag.min[a], v[a]);
+    vkDiag.max[a] = Math.max(vkDiag.max[a], v[a]);
+  }
+  vkDiag.vinkler.add(String(vinkel));
+}
+function vkDiagVis(){
+  const el = document.querySelector('[data-vk-diag]'); if(!el) return;
+  const d = vkDiag; vkDiag = null;
+  if(!d){ el.textContent = 'ingen aflæsninger det sidste sekund'; return; }
+  const f = x => (x >= 0 ? ' ' : '') + x.toFixed(2);
+  el.textContent = `${d.n} aflæsninger/s\n`
+    + ['x','y','z'].map(a => `${a} ${f(d.min[a])} … ${f(d.max[a])}`).join('\n')
+    + `\nvinkel ${[...d.vinkler].join(', ')}`;
+}
 function vkMalNiveau(){
   if(vkAktivSkærm !== 'vk-niveau') return;
   const C = vkKerne(); if(!C) return;
@@ -10119,6 +10149,7 @@ function vkPrøve(v){
   if(![v.x, v.y, v.z].every(Number.isFinite)) return;
   const længde = Math.hypot(v.x, v.y, v.z);
   if(længde < 0.1) return;
+  vkDiagNoter(v);
   const n = { x:v.x/længde, y:v.y/længde, z:v.z/længde };
   // Lavpasfilter — uden det hopper boblen ved hver lille rystelse.
   vkRå = vkRå ? { x:vkRå.x*0.8 + n.x*0.2, y:vkRå.y*0.8 + n.y*0.2, z:vkRå.z*0.8 + n.z*0.2 } : n;
@@ -10158,6 +10189,7 @@ function vkSkiftNiveau(){
     vkVagt = setInterval(()=>{
       if(!vkNiveauKører || vkAktivSkærm !== 'vk-niveau') return;
       vkMalNiveau();
+      vkDiagVis();   // midlertidig målevisning, kun admins — se vkDiagNoter
       vkBesked(!vkSidsteData || Date.now() - vkSidsteData >= 2500
         ? 'Der kommer ingen sensordata. Bevæg telefonen let, eller stop og prøv igen.' : '');
     }, 1000);

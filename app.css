@@ -2459,6 +2459,9 @@
   .vk-vater.i-vater{--vk-i-vater:color-mix(in srgb,var(--p-petrol) 45%,var(--p-warm-cream));
     background:radial-gradient(circle,var(--vk-i-vater) 0,var(--vk-i-vater) 46%,var(--bund) 47%)}
   .vk-vater.i-vater .vk-boble{background:var(--anker);border-color:var(--anker)}
+  /* Midlertidig målevisning til admins (6/10) — se vkDiagNoter i app.js. */
+  .vk-diag{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:var(--flade-dyb);
+    font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;text-align:left;white-space:pre;color:var(--tekst)}
   .vk-aflæsninger{display:flex;margin:16px 0 18px}
   .vk-aflæsninger > div{width:50%;display:flex;flex-direction:column;gap:2px}
   .vk-aflæsninger > div + div{border-left:1px solid var(--linje)}
