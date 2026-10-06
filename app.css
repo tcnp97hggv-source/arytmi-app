@@ -395,7 +395,7 @@
      browser, så intet flytter sig dér.
      ⚠️ PÅ IPHONE sættes --top inline på <html> af ArytmiBridgeViewController.swift
      (4/10): webvisningen meldte kun ~3 punkter, og alt lå oveni uret. */
-  :root{--skaerm:min(100dvh,932px);--top:env(safe-area-inset-top,0px)}
+  :root{--skaerm:min(100dvh,932px);--top:env(safe-area-inset-top,0px);--bund-luft:env(safe-area-inset-bottom,0px)}
   /* iOS lader hele webvisningen gynge og trække, selvom appen scroller inde
      i .indhold. Siden selv skal stå stille. */
   html,body{overscroll-behavior:none}
@@ -452,6 +452,11 @@
   @media(display-mode:standalone){
     html,body{background:var(--side-bund,var(--p-deep-brown))}
   }
+  /* Og hjem-stregen står i det døde felt, ikke over siden — så skal
+     bundmenuen ikke holde plads til den. Uden denne linje blev menuen
+     34 punkter højere oveni feltets 60 (Kennet 6/10: "alt for høj").
+     Klassen sættes af målDødtFelt() i app.js, kun når feltet er målt. */
+  html.doedt-felt{--bund-luft:0px}
   .indhold{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 0 118px;scroll-behavior:smooth;position:relative;z-index:1}
   .side{padding:22px 22px 0}
   /* Fri af uret og kameraøen. En hero øverst på skærmen trækkes op under
@@ -596,7 +601,7 @@
      nedefra — men fejlen er lige så synlig i browseren på 375×812.
      Overlayets padding-bottom holder stadig knappen fri af systembjælken. */
   .telefon.uden-bundnav .hero.fuld{height:var(--skaerm)}
-  .hero.fuld .overlay{padding-bottom:calc(28px + env(safe-area-inset-bottom));
+  .hero.fuld .overlay{padding-bottom:calc(28px + var(--bund-luft));
     justify-content:flex-start;
     background:linear-gradient(to top,rgba(var(--p-brun-25-rgb),.58) 0%,rgba(var(--p-brun-25-rgb),.28) 24%,transparent 48%)}
   /* centreret komposition: logo → overskrift → tekst → rund knap, trukket op mod toppen */
@@ -784,7 +789,7 @@
      flade igennem, og bjælken blev en rødbrun blok på Kennets iPhone. */
   .bundnav{position:absolute;left:0;right:0;bottom:0;
     background:var(--nav-flade);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-    display:flex;padding:5px 10px calc(9px + env(safe-area-inset-bottom));z-index:50;
+    display:flex;padding:5px 10px calc(9px + var(--bund-luft));z-index:50;
     box-shadow:inset 0 1px 0 rgba(var(--p-hvid-rgb),.09),0 -12px 32px rgba(var(--p-brun-23-rgb),.28)}
   .navpunkt{flex:1;background:none;border:none;cursor:pointer;text-align:center;color:var(--p-graa-3);font-family:inherit;
     padding:4px 0;height:46px;position:relative;transition:color .2s;
@@ -1848,7 +1853,7 @@
      bliver stående som den er. */
   @media(max-height:880px){
     .hero.fuld{height:calc(var(--skaerm) - 76px)}
-    .hero.fuld .overlay{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+    .hero.fuld .overlay{padding-bottom:calc(12px + var(--bund-luft))}
     .hero.fuld .rund-start{margin-top:18px;gap:10px}
     .rund-knap{width:96px;height:96px}
     .rund-knap .ik{width:33px;height:33px}
@@ -2705,11 +2710,11 @@
      Bjælken svæver over bundmenuen og følger med på hver skærm; arket er
      appens egen modal, bare med plads til en længere tekst.
      ============================================================= */
-  .red-bjaelke{position:absolute;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:60;
+  .red-bjaelke{position:absolute;left:12px;right:12px;bottom:calc(84px + var(--bund-luft));z-index:60;
     display:flex;align-items:center;gap:8px;padding:7px 7px 7px 14px;border-radius:100px;
     background:var(--p-deep-brown);color:var(--p-warm-cream);
     box-shadow:0 12px 30px rgba(var(--p-sort-rgb),.32),inset 0 1px 0 rgba(var(--p-hvid-rgb),.08)}
-  .telefon.uden-bundnav .red-bjaelke{bottom:calc(14px + env(safe-area-inset-bottom))}
+  .telefon.uden-bundnav .red-bjaelke{bottom:calc(14px + var(--bund-luft))}
   .red-mærke{display:flex;align-items:center;gap:6px;margin-right:auto;font-size:11px;font-weight:700;
     letter-spacing:1.6px;text-transform:uppercase;color:var(--p-kobber-lys)}
   .red-mærke .ik{width:15px;height:15px}

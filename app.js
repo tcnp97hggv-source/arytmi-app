@@ -10546,6 +10546,30 @@ async function kopiérAppLink(){
   }
 }
 
+/* DET DØDE FELT (Kennets iPhone 6/10). Fra hjemmeskærmen giver iPhone siden
+   812 af skærmens 874 punkter; feltet nederst fylder systemet selv med sidens
+   farve (se display-mode:standalone i app.css), og hjem-stregen står dér. Så
+   skal bundmenuen ikke også holde plads til den.
+   Feltet sidder FORNEDEN, når siden alligevel er trukket op under uret
+   (safe-area-top > 0). Den anden kendte variant af WebKit-fejlen holder
+   TOPPEN fri (top = 0) — dér går siden helt ned, og hjem-stregen skal have sin
+   plads. Derfor begge betingelser. Kun iPhone, kun på hjemmeskærmen, kun på
+   højkant. Måles igen, når telefonen vendes. */
+function målDødtFelt(){
+  let dødt = false;
+  try {
+    if(erInstalleret() && telefonSlags() === 'ios' && window.innerHeight > window.innerWidth){
+      const prøve = document.createElement('div');
+      prøve.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px)';
+      document.body.appendChild(prøve);
+      const top = parseFloat(getComputedStyle(prøve).paddingTop) || 0;
+      prøve.remove();
+      const skærm = Math.max(screen.height, screen.width);
+      dødt = top > 0 && skærm - window.innerHeight > 20;
+    }
+  } catch(e){ /* så holder menuen sin plads, som den altid har */ }
+  document.documentElement.classList.toggle('doedt-felt', dødt);
+}
 function kanBrugeSW(){
   if(erNativeApp() || !('serviceWorker' in navigator)) return false;
   if(location.protocol === 'https:') return true;
@@ -10580,6 +10604,8 @@ function gemTurBillederNu(){
     .catch(()=>{});
 }
 (function hjemmeskærmen(){
+  målDødtFelt();
+  window.addEventListener('resize', målDødtFelt);
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     installKald = e;
