@@ -10876,13 +10876,26 @@ async function lægBeskeder(){
 /* Tryk på beskeden: turen er allerede (eller bliver nu) flyttet ned i
    loggen af logAfholdteTure() og har fået et nyt id dér. Den findes igen
    på sted og dato; ellers åbnes den nyeste tur, der ikke er anmeldt. */
-function åbnAnmeldelseFraBesked(x){
+async function åbnAnmeldelseFraBesked(x){
   if(!s.onboarded) return;
   logAfholdteTure();
-  const uanmeldte = (s.ture || []).filter(tur => !tur.score);
-  const tur = uanmeldte.find(tur => tur.sted === x.sted && tur.dato === x.dato) || uanmeldte[0];
   nulstilHistorik(); gåTil('log');
-  if(tur) logSpontanModal(tur.id);
+  const find = () => {
+    const uanmeldte = (s.ture || []).filter(tur => !tur.score);
+    return { uanmeldte, tur: uanmeldte.find(tur => tur.sted === x.sted && tur.dato === x.dato) };
+  };
+  let { uanmeldte, tur } = find();
+  /* Beskeden kommer nu fra serveren (K22, fase C). Har telefonen ikke
+     hentet siden — appen lå i baggrunden, og iPhone lukker forbindelsen —
+     kender den ikke turen endnu. Så hentes der først. Kennets iPhone 7/10:
+     beskeden kom, men et tryk åbnede ingen anmeldelse. */
+  if(!tur && window.ArytmiSync && ArytmiSync.hent){
+    try { await ArytmiSync.hent(); } catch(e){ /* uden net: den nyeste, vi har */ }
+    logAfholdteTure();
+    ({ uanmeldte, tur } = find());
+  }
+  tur = tur || uanmeldte[0];
+  if(tur && aktivSkærm === 'log') logSpontanModal(tur.id);
 }
 (function beskedLyttere(){
   const LN = lokaleBeskeder(); if(!LN) return;
