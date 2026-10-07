@@ -30,7 +30,7 @@
    Siden app.js kun registrerer den over https (eller med et flag lokalt),
    kører den ALDRIG i Capacitor-appen og aldrig i navigationstesten. */
 
-const UDGAVE = 'c5d5a5d563d8';   // ← lav-www.js: indholdets fingeraftryk
+const UDGAVE = '1d923a215a00';   // ← lav-www.js: indholdets fingeraftryk
 const SKAL = ["app.css","app.js","auth.js","brand/arytmi_logo_2026/arytmi_brun.svg","brand/arytmi_logo_2026/arytmi_creme.svg","brand/arytmi_logo_2026/favicon/arytmi_A.svg","brand/arytmi_logo_2026/favicon/arytmi_A_180.png","brand/arytmi_logo_2026/favicon/arytmi_A_192.png","brand/arytmi_logo_2026/favicon/arytmi_A_256.png","brand/arytmi_logo_2026/favicon/arytmi_A_32.png","brand/arytmi_logo_2026/favicon/arytmi_A_512.png","brand/arytmi_logo_2026/favicon/arytmi_A_maskable_512.png","brand/arytmi_logo_2026/signaturbil.svg","byer.js","fejl.js","fonts/OFL-Fraunces.txt","fonts/OFL-Inter.txt","fonts/fraunces.woff2","fonts/inter.woff2","geo.js","index.html","manifest.webmanifest","model.js","redaktoer-plader.js","redaktoer.js","sync.js","tekstdata.js","vaerktoejskasse/adapters.js","vaerktoejskasse/core.js","vendor/leaflet/leaflet.css","vendor/leaflet/leaflet.js","vendor/supabase/supabase.js"];              // ← lav-www.js: appens faste filer
 
 const SKAL_CACHE = 'arytmi-skal-' + UDGAVE;
@@ -125,6 +125,47 @@ async function beskær(c) {
   const nøgler = await c.keys();
   for (let i = 0; i < nøgler.length - BILLED_LOFT; i++) await c.delete(nøgler[i]);
 }
+
+/* ---------- påmindelsen (K22, fase C, 7/10) ----------
+   paamind-afholdt sender "Din arytme er nu afholdt" som push, når hun har
+   sagt ja. Indholdet er krypteret til telefonen og kommer som JSON:
+   { slags, titel, tekst, sted, dato, url }. Et tryk åbner anmeldelsen, som
+   den lokale besked i den pakkede app gør (åbnAnmeldelseFraBesked i app.js).
+
+   Adressen, der åbnes, bygges HER ud fra stedet og datoen — ikke af `url`
+   i beskeden — så et tryk altid lander i den app, beskeden blev sendt til,
+   også under udvikling. */
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (fejl) { d = {}; }
+  const besked = { slags: d.slags || '', sted: d.sted || '', dato: d.dato || '' };
+  e.waitUntil(self.registration.showNotification(d.titel || 'Arytmi', {
+    body: d.tekst || '',
+    icon: 'brand/arytmi_logo_2026/favicon/arytmi_A_192.png',
+    lang: 'da',
+    // Samme tur, samme besked: en gentagelse erstatter den gamle.
+    tag: 'arytmi-' + besked.slags + '-' + besked.dato,
+    data: besked
+  }));
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const besked = e.notification.data || {};
+  e.waitUntil((async () => {
+    /* Er appen allerede åben, bringes den frem og får beskeden. */
+    const vinduer = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const v of vinduer) {
+      if (!v.url.startsWith(self.registration.scope)) continue;
+      try { await v.focus(); } catch (fejl) { /* nogle telefoner tillader det ikke */ }
+      v.postMessage({ slags: 'aabn-besked', besked });
+      return;
+    }
+    /* Ellers åbnes den med beskeden i adressen; app.js læser den ved opstart. */
+    const q = new URLSearchParams({ besked: besked.slags || 'afholdt', sted: besked.sted || '', dato: besked.dato || '' });
+    await self.clients.openWindow(new URL('./?' + q, self.registration.scope).href);
+  })());
+});
 
 /* app.js beder om at få den aktive turs billeder hentet nu (gemTurBilleder).
    Kun billeder — alt andet ignoreres. */

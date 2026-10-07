@@ -2838,19 +2838,19 @@ function skærmOnboarding(){
         <span style="color:var(--rav)">${ik('klokke','stor')}</span>
         <h3>${t('omdig.beskeder','Beskeder')}</h3>
       </div>
-      <!-- ⚠️ TEKSTEN SKAL VÆRE SAND I DAG, ikke når notifikationerne kommer.
-           Indtil 16/9 stod der "sender Arytmi beskeder til din telefon" og
-           "Beskederne er slået til fra start" — i onboardingen, altså som
-           noget af det FØRSTE appen siger til en ny kunde. Der findes ingen
-           notifikationer: s.profil.notifikationer er en kontakt, der gemmes
-           og synkroniseres, og ellers ikke gør noget.
-           Et løfte, der ikke holdes, bruger den tillid op, man skal bruge den
-           dag kontakten virker. Kontakten bliver — valget er ægte nok, det er
-           bare ikke taget i brug endnu. Hvornår påmindelserne skal komme, og
-           hvor de skal leve, er parkeret (KN 7/9); derfor loves der heller
-           ingen tidspunkter her. -->
-      <p style="font-size:14.5px">${t('omdig.beskederhvorfor','Vi vil gerne kunne minde jer om turen, så I ikke skal gå og huske på den selv.')}</p>
-      <p class="dæmpet" style="font-size:13.5px;margin-top:8px">${t('omdig.beskederfra','Påmindelserne er ikke sat i gang endnu. Vi gemmer dit valg, så de står, som du vil have dem, den dag de kommer — og du kan altid ændre det under Profil &amp; indstillinger.')}</p>
+      <!-- ⚠️ TEKSTEN SKAL VÆRE SAND I DAG. Indtil 16/9 stod der "sender
+           Arytmi beskeder til din telefon" — som noget af det FØRSTE appen
+           sagde til en ny kunde — og der fandtes ingen beskeder. Fra 16/9 til
+           7/10 stod der derfor ærligt, at påmindelserne ikke var sat i gang.
+           Nu ER de (K22, fase C): paamind-afholdt sender "Din arytme er nu
+           afholdt" dagen efter turen kl. 10 — som besked på telefonen, hvis
+           hun har sagt ja her eller under Profil, ellers på mail. Teksten
+           siger HVOR den kommer på netop denne telefon (beskedKanal()).
+           ⚠️ Derfor må den her udgave af appen først ud, når 0049 er kørt og
+           paamind-afholdt er udrullet med sine hemmeligheder — ellers er det
+           igen et løfte, der ikke holdes. -->
+      <p style="font-size:14.5px">${t('omdig.beskederhvorfor','Dagen efter jeres tur minder vi dig om at anmelde den, så du senere kan huske det bedste og rette det, der kunne være bedre.')}</p>
+      <div id="obBeskedKanal">${obBeskedKanal()}</div>
       <button class="knap primær bred" id="obFaerdigKnap" onclick="obFærdig()" style="margin-top:16px">${t('omdig.knap','Kom i gang')}</button>
     </div>
   </div>`;
@@ -3008,6 +3008,20 @@ async function efterLogin(){
   obTrin = 3; tegn();
 }
 
+/* Beskeder i velkomsten: hvor påmindelsen kommer, og — kan telefonen give
+   besked — knappen, der spørger. Blokken tegnes for sig efter svaret, så
+   navnet, hun allerede har skrevet ovenover, ikke forsvinder med en tegn(). */
+function obBeskedKanal(){
+  const k = beskedKanal();
+  return `<p class="dæmpet" style="font-size:13.5px;margin-top:8px">${beskedKanalTekst(k)} ${t('omdig.beskederfra','Du kan altid ændre det under Profil &amp; indstillinger.')}</p>
+    ${k === 'kan' ? `<button class="knap kontur lille" style="margin-top:10px" onclick="obBeskederTil()">${t('beskeder.knap','Ja tak, på telefonen')}</button>` : ''}`;
+}
+async function obBeskederTil(){
+  const k = await slåPushTil();
+  const blok = $('obBeskedKanal');
+  if(blok) blok.innerHTML = obBeskedKanal();
+  beskedSvar(k);
+}
 /* Sidste skridt i onboardingen. Navnet gemmes BÅDE lokalt og på serveren —
    det er serverens udgave, der følger med til næste telefon, og uden den
    ville hun blive spurgt igen ved hvert skifte. Fejler serveren, kommer hun
@@ -3069,6 +3083,7 @@ async function logUdAfArytmi(){
   /* Selve udgangen. Samlet i én funktion, fordi der nu er TO veje hertil:
      den almindelige, og den hvor udbakken ikke kunne tømmes. */
   const lukDøren = async ()=>{
+    await glemPush();   // FØR logUd: kun hun selv må slette sit abonnement
     try { await ArytmiAuth.logUd(); } catch(e){}
     if(window.ArytmiSync && ArytmiSync.glem) ArytmiSync.glem();
     try { localStorage.removeItem(GEM); } catch(e){}
@@ -3219,6 +3234,7 @@ async function sletKontoUdfør(kodeord){
      samme telefon, fik den forriges ture stemplet med SIT ejer-id.
      Her er kontoen endda slettet, så der er ingen server at rette op mod. */
   if(window.ArytmiSync && ArytmiSync.glem) ArytmiSync.glem();
+  await glemPush();   // rækken er væk med kontoen; telefonen skal også opsige abonnementet
   try { await ArytmiAuth.logUd(); } catch(e){}
   try { localStorage.removeItem(GEM); } catch(e){}
   try { localStorage.removeItem('klar-app-v2'); } catch(e){}
@@ -9562,22 +9578,33 @@ function skærmProfil(){
       ${åben?`<div class="bil-krop"><p class="dæmpet" style="font-size:13.5px;margin:0">${brød}</p></div>`:''}`;
   };
 
+  /* BESKEDER ER ÆGTE NU (K22, 7/10). Indtil da stod der, at påmindelserne
+     "ikke er sat i gang endnu" — og den 16/9 blev en advarsel om at slå
+     noget fra, der aldrig havde været tændt, fjernet herfra. Teksten skal
+     stadig være sand i dag: den siger, HVOR påmindelsen kommer (telefon
+     eller mail), og det er det, serveren gør (paamind-afholdt).
+
+     Underteksten skal ikke læse kontakten højt — den skal sige, hvad
+     tilstanden BETYDER: Fra, eller Til og hvorhen. */
+  const kanal = beskedKanal();
   const beskeder = række('beskeder','klokke',
     t('indstil.beskeder','Beskeder'),
     !!p.notifikationer,
-    's.profil.notifikationer=!s.profil.notifikationer;gem();tegn()',
-    /* Underteksten skal ikke laese kontakten hoejt — den skal sige, hvad
-       tilstanden BETYDER. Til og Fra er de ord, appen brugte i forvejen. */
-    /* Samme rettelse som i onboardingen 16/9, og her sad den værste af de to:
-       den gamle tekst ADVAREDE mod at slå noget fra, der aldrig har været
-       tændt — "Det gør oplevelsen med appen dårligere". Der sendes ingen
-       beskeder. En advarsel om en konsekvens, der ikke findes, er den
-       hurtigste måde at lære folk at overhøre advarsler. */
-    t('indstil.beskederhvorfor','Vi vil gerne kunne minde jer om turen, så I ikke skal gå og huske på den selv. Påmindelserne er ikke sat i gang endnu — dit valg her gemmes, så de står rigtigt, den dag de kommer.')
-      + (p.notifikationer
-          ? ' ' + t('indstil.beskedermeget','Du kan altid ændre det her.')
-          : `</p><div class="advarsel" style="margin-top:10px">${t('indstil.beskederslaaetfra','Du har slået påmindelserne fra. Vi minder jer ikke om turen, når de kommer.')}</div><p>`),
-    p.notifikationer?t('indstil.til','Til'):t('indstil.fra','Fra'));
+    'skiftBeskeder()',
+    t('indstil.beskederhvorfor','Dagen efter din tur minder vi dig om at anmelde den, så du senere kan huske det bedste og rette det, der kunne være bedre.')
+      + (!p.notifikationer
+          ? `</p><div class="advarsel" style="margin-top:10px">${t('indstil.beskederslaaetfra','Du har slået påmindelserne fra. Vi minder dig ikke om at anmelde turen.')}</div><p>`
+          : kanal === 'kan' ? '' : ' ' + beskedKanalTekst(kanal)),
+    !p.notifikationer ? t('indstil.fra','Fra')
+      : kanal === 'telefon' ? t('indstil.beskedertelefon','Til · på telefonen')
+      : t('indstil.beskedermail','Til · på mail'));
+  /* Til, men påmindelsen kommer på mail, og telefonen KAN give besked: så
+     står spørgsmålet fremme og ikke gemt bag (i). Kontakten er til fra
+     start (onboardingen), så ellers ville ingen nogensinde blive spurgt. */
+  const beskederTilbud = (p.notifikationer && kanal === 'kan')
+    ? `<div class="bil-krop"><p class="dæmpet" style="font-size:13.5px;margin:0">${beskedKanalTekst(kanal)}</p>
+        <button class="knap kontur lille" onclick="slåBeskederTil()">${t('beskeder.knap','Ja tak, på telefonen')}</button></div>`
+    : '';
 
   /* Editor-tilstanden (KN 5/10). Kun for admins. */
   const editor = !erAdmin() || !window.ArytmiRedaktoer ? '' : række('editor','blyant',
@@ -9634,7 +9661,7 @@ function skærmProfil(){
     ${partnerAktiv()?'':partnerKort()}
     <div class="liste indstil-liste">
       ${partnerAktiv()?partnerKort():''}
-      ${beskeder}
+      ${beskeder}${beskederTilbud}
       ${editor}
       ${lys}
     </div>
@@ -10626,6 +10653,151 @@ function gemTurBillederNu(){
       reg.update().catch(()=>{});
     });
   }).catch(()=>{ /* uden service worker er det bare en hjemmeside */ });
+})();
+
+/* =============================================================
+   PÅMINDELSEN SOM BESKED PÅ TELEFONEN (K22, fase C, 7/10)
+   =============================================================
+   "Din arytme er nu afholdt" sendes nu fra serveren (paamind-afholdt, 0049)
+   dagen efter turens sidste dag kl. 10. Kennet 6/10: har hun sagt ja til
+   beskeder på telefonen, får hun en besked; ellers en mail. Aldrig begge.
+
+   "Ja" er et push-abonnement, som telefonen giver os, og som vi gemmer på
+   hendes konto (ArytmiAuth.gemPushAbonnement). Det findes kun:
+   · når siden kører med service worker (https, ikke den pakkede app),
+   · på iPhone KUN fra hjemmeskærmen — i Safari findes push ikke,
+   · når hun selv har trykket. Telefonen spørger kun ved et tryk, og et nej
+     kan kun gøres om i telefonens indstillinger.
+
+   "Beskeder" slået fra under Profil = ingen påmindelse overhovedet. Det
+   afgør serveren ud fra profiler.notifikationer; abonnementet bliver
+   liggende, så det virker igen, når hun slår til.
+
+   Den pakkede app (Capacitor) bruger stadig sine lokale beskeder
+   (lægBeskeder() nedenfor). Den har intet abonnement, så serveren sender
+   også en mail dér — butiksappen er parkeret (K22), så det rammer kun
+   testtelefonerne. */
+var pushGemt = null;   // null: ved det ikke · true: gemt på serveren · false: kunne ikke gemmes
+
+/* Hvordan kommer påmindelsen frem på DENNE telefon? */
+function beskedKanal(){
+  if(erNativeApp()) return 'telefon';
+  if(telefonSlags() === 'ios' && !erInstalleret()) return 'hjemmeskaerm';
+  if(!kanBrugeSW() || !('PushManager' in window) || typeof Notification === 'undefined') return 'mail';
+  if(Notification.permission === 'denied') return 'naegtet';
+  /* Ja i telefonen, men intet abonnement på serveren (nettet var væk, eller
+     telefonen gav os ikke et): så får hun spørgsmålet igen — ellers stod hun
+     på mail uden en knap at prøve med. */
+  if(Notification.permission === 'granted') return pushGemt === false ? 'kan' : 'telefon';
+  return 'kan';
+}
+function beskedKanalTekst(k){
+  if(k === 'telefon') return t('beskeder.telefon','Påmindelsen kommer som en besked på telefonen.');
+  if(k === 'kan') return t('beskeder.kan','Påmindelsen kommer på mail. Vil du hellere have den som en besked på telefonen?');
+  if(k === 'hjemmeskaerm') return t('beskeder.hjemmeskaerm','Påmindelsen kommer på mail. Den kan kun komme som en besked på telefonen, når Arytmi er lagt på hjemmeskærmen.');
+  if(k === 'naegtet') return t('beskeder.naegtet','Påmindelsen kommer på mail, fordi beskeder fra Arytmi er slået fra i telefonens indstillinger.');
+  return t('beskeder.mail','Påmindelsen kommer på mail.');
+}
+function vapidNøgle(){
+  const s64 = 'BJge81ySRTMhXeeeeRpRUHSLmyAy6GQ7i70tqVKAXQMah-zSqagNqr5sxZca6UwD_qJvJVxLd6u-QekZopwcg0I';
+  const bin = atob(s64.replace(/-/g,'+').replace(/_/g,'/'));
+  return Uint8Array.from(bin, c => c.charCodeAt(0));
+}
+/* Tryk → telefonen spørger → abonnementet gemmes. Kaldes KUN fra et tryk:
+   iPhone spørger kun, når spørgsmålet kommer direkte fra en handling, så
+   intet må ventes på før requestPermission(). Svarer med den nye kanal. */
+async function slåPushTil(){
+  if(beskedKanal() !== 'kan') return beskedKanal();
+  let svar = Notification.permission;
+  try { if(svar === 'default') svar = await Notification.requestPermission(); }
+  catch(e){ svar = 'default'; }
+  if(svar !== 'granted') return beskedKanal();
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let ab = await reg.pushManager.getSubscription();
+    if(!ab){
+      try { ab = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidNøgle() }); }
+      catch(e){
+        /* Et gammelt abonnement med en anden nøgle står i vejen. */
+        const gammel = await reg.pushManager.getSubscription();
+        if(gammel) await gammel.unsubscribe();
+        ab = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidNøgle() });
+      }
+    }
+    const gemt = await ArytmiAuth.gemPushAbonnement(ab);
+    pushGemt = !!gemt.ok;
+  } catch(e){ pushGemt = false; }
+  return beskedKanal();
+}
+function beskedSvar(k){
+  if(k === 'telefon') flash(t('beskeder.slaaettil','Godt. Påmindelsen kommer som en besked på telefonen.'), 'klokke');
+  else if(k === 'naegtet') flash(beskedKanalTekst(k));
+  else if(pushGemt === false) flash(t('beskeder.fejl','Det lykkedes ikke at slå beskeder til lige nu. Påmindelsen kommer på mail, og du kan prøve igen under Profil & indstillinger.'));
+}
+/* Fra Profil: "Ja tak, på telefonen", og når Beskeder slås til. */
+async function slåBeskederTil(){
+  const k = await slåPushTil();
+  tegn(); beskedSvar(k);
+}
+function skiftBeskeder(){
+  s.profil.notifikationer = !s.profil.notifikationer;
+  gem(); tegn();
+  if(s.profil.notifikationer && beskedKanal() === 'kan') slåBeskederTil();
+}
+/* Ved opstart: har hun sagt ja før, sendes abonnementet op igen. Telefonen
+   kan selv have skiftet det ud, og et gem, der fejlede uden net, tages her.
+   Der laves ALDRIG et nyt abonnement uden et tryk — logger en anden ind på
+   telefonen, har hun ikke sagt ja, bare fordi den forrige gjorde. */
+async function synkPush(){
+  try {
+    if(!s.onboarded || loginKræves || s.profil.notifikationer === false) return;
+    if(!kanBrugeSW() || !('PushManager' in window) || typeof Notification === 'undefined') return;
+    if(Notification.permission !== 'granted') return;
+    const reg = await navigator.serviceWorker.ready;
+    const ab = await reg.pushManager.getSubscription();
+    if(!ab){ pushGemt = false; return; }   // ja i telefonen, men intet abonnement: spørg igen
+    const gemt = await ArytmiAuth.gemPushAbonnement(ab);
+    pushGemt = !!gemt.ok;
+  } catch(e){ /* næste opstart */ }
+}
+/* Ved udlogning (og når kontoen slettes): telefonen er ikke hendes mere.
+   Rækken slettes FØR sessionen lukkes — bagefter må hun ikke slette noget. */
+async function glemPush(){
+  try {
+    if(!kanBrugeSW() || !('PushManager' in window)) return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    const ab = reg && await reg.pushManager.getSubscription();
+    if(!ab) return;
+    await ArytmiAuth.fjernPushAbonnement(ab.endpoint);
+    await ab.unsubscribe();
+  } catch(e){ /* udlogningen må aldrig vente på en besked */ }
+}
+(function beskederPåTelefonen(){
+  /* Tryk på beskeden, mens appen er åben: sw.js sender den hertil. */
+  if(kanBrugeSW()){
+    navigator.serviceWorker.addEventListener('message', e => {
+      const d = e.data || {};
+      if(loginKræves) return;   // anmeldelsen må ikke lægge sig oven på login
+      if(d.slags === 'aabn-besked' && d.besked && d.besked.slags === 'afholdt') åbnAnmeldelseFraBesked(d.besked);
+    });
+    synkPush();
+  }
+  /* Linket i mailen, og et tryk på beskeden, når appen var lukket:
+     app.arytmi.com/?besked=afholdt&sted=…&dato=… Adressen ryddes, så et
+     genindlæs ikke åbner anmeldelsen igen. */
+  let q;
+  try { q = new URLSearchParams(location.search); } catch(e){ return; }
+  if(q.get('besked') !== 'afholdt') return;
+  try { history.replaceState(null, '', location.pathname + location.hash); } catch(e){}
+  if(!s.onboarded) return;
+  const besked = { sted: q.get('sted') || '', dato: q.get('dato') || '' };
+  /* Først når vi ved, at hun er logget ind. Er sessionen væk, kommer
+     login-skærmen (tjekLogin) — og anmeldelsen må ikke ligge oven på den.
+     Uden klient (testen) svarer harSession null, og så åbnes den. */
+  const åbn = () => { if(!loginKræves) åbnAnmeldelseFraBesked(besked); };
+  if(typeof ArytmiAuth !== 'undefined' && ArytmiAuth.harSession){
+    ArytmiAuth.harSession().then(inde => { if(inde !== false) åbn(); }).catch(åbn);
+  } else åbn();
 })();
 
 /* =============================================================

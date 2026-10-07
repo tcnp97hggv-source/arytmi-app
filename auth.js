@@ -665,6 +665,41 @@
     }
   }
 
+  /* ---------- push-abonnementet (K22, 0049) ----------
+
+     Rækken ER svaret på "har hun sagt ja til beskeder på telefonen": findes
+     den, sender `paamind-afholdt` påmindelsen som push; ellers som mail.
+
+     bruger_id sendes IKKE med - databasen sætter den selv til den, der er
+     logget ind, og kolonnen er ikke hendes at skrive (0049). Findes adressen
+     allerede, gør det ingenting: samme telefon, samme abonnement. */
+  async function gemPushAbonnement(abonnement) {
+    const k = faaKlient();
+    if (!k) return { ok: false, fejl: 'Ingen forbindelse.' };
+    const j = abonnement && typeof abonnement.toJSON === 'function' ? abonnement.toJSON() : (abonnement || {});
+    const noegler = j.keys || {};
+    if (!j.endpoint || !noegler.p256dh || !noegler.auth) return { ok: false, fejl: 'Telefonen gav ikke et abonnement.' };
+    try {
+      const { error } = await k.from('push_abonnement')
+        .upsert({ endpoint: j.endpoint, p256dh: noegler.p256dh, auth: noegler.auth },
+                { onConflict: 'endpoint', ignoreDuplicates: true });
+      if (error) return { ok: false, fejl: laesbarFejl(error) };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, fejl: laesbarFejl(e) };
+    }
+  }
+
+  /* Ved udlogning: telefonen er ikke længere hendes. Kun hendes egen række
+     kan slettes (RLS), og uden net sker der ingenting - så falder push-
+     tjenestens 404/410 tilbage til mail, når abonnementet er opsagt. */
+  async function fjernPushAbonnement(endpoint) {
+    const k = faaKlient();
+    if (!k || !endpoint) return { ok: true };
+    try { await k.from('push_abonnement').delete().eq('endpoint', endpoint); } catch (e) { /* se ovenfor */ }
+    return { ok: true };
+  }
+
   return {
     PROJEKT, MIN_KODEORD,
     faaKlient, tilgaengelig,
@@ -677,6 +712,7 @@
     hentProfil, gemProfil,
     inviterPartner, hentPartner, fjernPartner, hentSendtInvitation, hentIndloestInvitation,
     hentPartnerNavn,
+    gemPushAbonnement, fjernPushAbonnement,
     inviterGaest, hentGaest,
     sletKonto,
     laesbarFejl
