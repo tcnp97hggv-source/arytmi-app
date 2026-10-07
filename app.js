@@ -10479,6 +10479,7 @@ var installKald = null;      // Androids "installér"-hændelse, gemt til knappe
 var installeretNu = false;   // Android: lige lagt på startskærmen fra denne fane
 var nyUdgaveKlar = false;    // sw.js har taget en ny udgave i brug
 var billedPause = null;
+var beskedLinkUdenApp = false; // åbnet fra påmindelsens link i en browser, hvor hun ikke er logget ind
 
 function erNativeApp(){
   const c = window.Capacitor;
@@ -10541,10 +10542,20 @@ function skærmInstallér(){
         ${trin(3, t('installer.android3','Åbn Arytmi fra startskærmen, og log ind dér'))}
       </ol>`;
   }
+  /* FRA PÅMINDELSENS LINK (Kennet 7/10). Et link i en mail åbner ALDRIG
+     appen på en iPhones hjemmeskærm — Apple sender det til Safari eller til
+     mailappens egen browser, og siden kan ikke se, om appen er installeret:
+     de har hver sit lager. Så den, der har appen, får besked på at åbne den
+     derfra, og guiden står nedenunder til den, der ikke har. */
+  const fraBesked = beskedLinkUdenApp && !installeretNu;
+  const skærmNavn = slags === 'ios' ? t('installer.hjemmeskaerm','hjemmeskærm') : t('installer.startskaerm','startskærm');
+  if(fraBesked) krop = `<p class="inst-klar">${t('installer.beskedikke','Har du ikke Arytmi på din {skaerm}? Sådan lægger du den dér:', { skaerm: skærmNavn })}</p>` + krop;
   $('indhold').innerHTML = obRamme(
     t('installer.etiket','Arytmi på din telefon'),
-    t('installer.overskrift','Læg Arytmi på din hjemmeskærm'),
-    t('installer.under','Så ligger den lige ved hånden, som en app.'),
+    fraBesked ? t('installer.beskedoverskrift','Åbn Arytmi fra din {skaerm}', { skaerm: skærmNavn })
+              : t('installer.overskrift','Læg Arytmi på din hjemmeskærm'),
+    fraBesked ? t('installer.beskedunder','Har du allerede Arytmi på din {skaerm}? Så luk det her vindue, og åbn Arytmi derfra. Turen ligger under Afholdte ture i Dine arytmer.', { skaerm: skærmNavn })
+              : t('installer.under','Så ligger den lige ved hånden, som en app.'),
     krop,
     `<p class="inst-hvorfor">${t('installer.hvorfor','Arytmi ligger ikke i App Store eller Google Play. Du lægger den på din hjemmeskærm direkte herfra, og så har du altid den nyeste udgave. Nye steder og forbedringer kommer helt af sig selv. Du skal aldrig opdatere noget.')}</p>
      <div class="login-link"><button class="tekst-knap" onclick="fortsætIBrowseren()">${t('installer.browser','Brug Arytmi i browseren i stedet')}</button></div>`);
@@ -10789,7 +10800,9 @@ async function glemPush(){
   try { q = new URLSearchParams(location.search); } catch(e){ return; }
   if(q.get('besked') !== 'afholdt') return;
   try { history.replaceState(null, '', location.pathname + location.hash); } catch(e){}
-  if(!s.onboarded) return;
+  /* Ikke logget ind her: linket er åbnet i en browser, ikke i appen på
+     hjemmeskærmen (iPhone kan ikke åbne den fra et link). Guiden siger det. */
+  if(!s.onboarded){ beskedLinkUdenApp = true; if(visInstallation()) tegn(); return; }
   const besked = { sted: q.get('sted') || '', dato: q.get('dato') || '' };
   /* Først når vi ved, at hun er logget ind. Er sessionen væk, kommer
      login-skærmen (tjekLogin) — og anmeldelsen må ikke ligge oven på den.
