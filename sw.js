@@ -150,8 +150,11 @@ self.addEventListener('push', e => {
     body: d.tekst || '',
     icon: 'brand/arytmi_logo_2026/favicon/arytmi_A_192.png',
     lang: 'da',
-    // Samme tur, samme besked: en gentagelse erstatter den gamle.
-    tag: 'arytmi-' + besked.slags + '-' + (besked.tur || besked.dato || ''),
+    /* Samme tur, samme besked: en gentagelse erstatter den gamle. MEN ikke
+       gæstens svar (Kennet 7/10: en besked ved hvert ja og hvert nej): med
+       samme tag ville det nye svar erstatte det gamle - på Android uden en
+       lyd - og to gæster på samme tur ville skjule hinanden. */
+    ...(besked.slags === 'gaest' ? {} : { tag: 'arytmi-' + besked.slags + '-' + (besked.tur || besked.dato || '') }),
     data: besked
   }));
 });
