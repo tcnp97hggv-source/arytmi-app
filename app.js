@@ -10783,31 +10783,69 @@ async function glemPush(){
     await ab.unsubscribe();
   } catch(e){ /* udlogningen må aldrig vente på en besked */ }
 }
+/* Et tryk på en besked — fra sw.js, eller fra adressen ved opstart.
+   'afholdt' åbner anmeldelsen; 'delt' og 'gaest' (K23, 7/10) åbner turen
+   direkte (Kennet 16/9: "et tryk åbner turen direkte — ikke bare appen"). */
+const BESKED_SLAGS = ['afholdt', 'delt', 'gaest'];
+function åbnBesked(x){
+  if(!x || loginKræves) return;   // intet må lægge sig oven på login
+  if(x.slags === 'afholdt') åbnAnmeldelseFraBesked(x);
+  else if(x.slags === 'delt' || x.slags === 'gaest') åbnTurFraBesked(x);
+}
+/* Turen findes måske ikke på telefonen endnu: beskeden kom fra serveren,
+   og en delt tur er rejsemakkerens, ikke hendes. Så hentes der først — som
+   ved påmindelsen. Findes den slet ikke (slettet, eller allerede afholdt),
+   lander hun på forsiden i stedet for et tomt skærmbillede. */
+async function åbnTurFraBesked(x){
+  if(!s.onboarded || !x.tur) return;
+  const findes = () => (s.arytmer || []).some(a => a && a.id === x.tur);
+  if(!findes() && window.ArytmiSync && ArytmiSync.hent){
+    try { await ArytmiSync.hent(); } catch(e){ /* uden net: det, vi har */ }
+  }
+  if(loginKræves) return;
+  if(x.slags === 'delt') s.deltVarsel = [];   // kortet har gjort sit arbejde — som seDeltTur()
+  nulstilHistorik();
+  if(findes()){ s.aktivId = x.tur; gem(); gåTil('turplan'); }
+  else { gem(); gåTil('hjem'); }
+}
+/* Genoptages appen fra baggrunden, kører opstarten ikke — det så vi på
+   Kennets iPhone 7/10: abonnementet kom først op igen, da appen var lukket
+   helt. Derfor sendes det også op, når hun kommer tilbage. Højst én gang i
+   timen: det er et kald, ikke noget, der skal ske ved hvert kig. */
+var pushSidstSynket = 0;
+function synkPushHvisLængeSiden(){
+  if(Date.now() - pushSidstSynket < 3600e3) return;
+  pushSidstSynket = Date.now();
+  synkPush();
+}
 (function beskederPåTelefonen(){
   /* Tryk på beskeden, mens appen er åben: sw.js sender den hertil. */
   if(kanBrugeSW()){
     navigator.serviceWorker.addEventListener('message', e => {
       const d = e.data || {};
-      if(loginKræves) return;   // anmeldelsen må ikke lægge sig oven på login
-      if(d.slags === 'aabn-besked' && d.besked && d.besked.slags === 'afholdt') åbnAnmeldelseFraBesked(d.besked);
+      if(d.slags === 'aabn-besked' && d.besked) åbnBesked(d.besked);
     });
-    synkPush();
+    synkPushHvisLængeSiden();
+    document.addEventListener('visibilitychange', () => {
+      if(document.visibilityState === 'visible') synkPushHvisLængeSiden();
+    });
   }
   /* Linket i mailen, og et tryk på beskeden, når appen var lukket:
-     app.arytmi.com/?besked=afholdt&sted=…&dato=… Adressen ryddes, så et
-     genindlæs ikke åbner anmeldelsen igen. */
+     app.arytmi.com/?besked=afholdt&sted=…&dato=… eller ?besked=delt&tur=…
+     Adressen ryddes, så et genindlæs ikke åbner det igen. */
   let q;
   try { q = new URLSearchParams(location.search); } catch(e){ return; }
-  if(q.get('besked') !== 'afholdt') return;
+  const slags = q.get('besked');
+  if(!BESKED_SLAGS.includes(slags)) return;
   try { history.replaceState(null, '', location.pathname + location.hash); } catch(e){}
   /* Ikke logget ind her: linket er åbnet i en browser, ikke i appen på
      hjemmeskærmen (iPhone kan ikke åbne den fra et link). Guiden siger det. */
   if(!s.onboarded){ beskedLinkUdenApp = true; if(visInstallation()) tegn(); return; }
-  const besked = { sted: q.get('sted') || '', dato: q.get('dato') || '' };
+  const besked = { slags, sted: q.get('sted') || '', dato: q.get('dato') || '', tur: q.get('tur') || '' };
   /* Først når vi ved, at hun er logget ind. Er sessionen væk, kommer
-     login-skærmen (tjekLogin) — og anmeldelsen må ikke ligge oven på den.
+     login-skærmen (tjekLogin) — og intet må ligge oven på den.
      Uden klient (testen) svarer harSession null, og så åbnes den. */
-  const åbn = () => { if(!loginKræves) åbnAnmeldelseFraBesked(besked); };
+  const åbn = () => åbnBesked(besked);
   if(typeof ArytmiAuth !== 'undefined' && ArytmiAuth.harSession){
     ArytmiAuth.harSession().then(inde => { if(inde !== false) åbn(); }).catch(åbn);
   } else åbn();

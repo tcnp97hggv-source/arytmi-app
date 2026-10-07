@@ -30,7 +30,7 @@
    Siden app.js kun registrerer den over https (eller med et flag lokalt),
    kører den ALDRIG i Capacitor-appen og aldrig i navigationstesten. */
 
-const UDGAVE = '1bf05050b640';   // ← lav-www.js: indholdets fingeraftryk
+const UDGAVE = '70b90d6bbfe9';   // ← lav-www.js: indholdets fingeraftryk
 const SKAL = ["app.css","app.js","auth.js","brand/arytmi_logo_2026/arytmi_brun.svg","brand/arytmi_logo_2026/arytmi_creme.svg","brand/arytmi_logo_2026/favicon/arytmi_A.svg","brand/arytmi_logo_2026/favicon/arytmi_A_180.png","brand/arytmi_logo_2026/favicon/arytmi_A_192.png","brand/arytmi_logo_2026/favicon/arytmi_A_256.png","brand/arytmi_logo_2026/favicon/arytmi_A_32.png","brand/arytmi_logo_2026/favicon/arytmi_A_512.png","brand/arytmi_logo_2026/favicon/arytmi_A_maskable_512.png","brand/arytmi_logo_2026/signaturbil.svg","byer.js","fejl.js","fonts/OFL-Fraunces.txt","fonts/OFL-Inter.txt","fonts/fraunces.woff2","fonts/inter.woff2","geo.js","index.html","manifest.webmanifest","model.js","redaktoer-plader.js","redaktoer.js","sync.js","tekstdata.js","vaerktoejskasse/adapters.js","vaerktoejskasse/core.js","vendor/leaflet/leaflet.css","vendor/leaflet/leaflet.js","vendor/supabase/supabase.js"];              // ← lav-www.js: appens faste filer
 
 const SKAL_CACHE = 'arytmi-skal-' + UDGAVE;
@@ -126,25 +126,32 @@ async function beskær(c) {
   for (let i = 0; i < nøgler.length - BILLED_LOFT; i++) await c.delete(nøgler[i]);
 }
 
-/* ---------- påmindelsen (K22, fase C, 7/10) ----------
-   paamind-afholdt sender "Din arytme er nu afholdt" som push, når hun har
-   sagt ja. Indholdet er krypteret til telefonen og kommer som JSON:
-   { slags, titel, tekst, sted, dato, url }. Et tryk åbner anmeldelsen, som
-   den lokale besked i den pakkede app gør (åbnAnmeldelseFraBesked i app.js).
+/* ---------- beskederne (K22 fase C og K23, 7/10) ----------
+   paamind-afholdt sender "Din arytme er nu afholdt"; send-besked og
+   gaest-liste sender "{navn} er i gang med at planlægge en tur" og "{navn}
+   er med". Indholdet er krypteret til telefonen og kommer som JSON:
+   { slags, titel, tekst, sted?, dato?, tur? }. Et tryk åbner anmeldelsen
+   eller turen (åbnBesked i app.js).
 
    Adressen, der åbnes, bygges HER ud fra stedet og datoen — ikke af `url`
    i beskeden — så et tryk altid lander i den app, beskeden blev sendt til,
    også under udvikling. */
+/* Tre slags (K23, 7/10): 'afholdt' (påmindelsen: sted + dato), 'delt'
+   (rejsemakkeren har delt en tur: tur-id) og 'gaest' (en gæst har sagt ja:
+   tur-id). Kun de felter, app.js kan bruge, følger med videre. */
+const BESKED_FELTER = ['sted', 'dato', 'tur'];
+
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (fejl) { d = {}; }
-  const besked = { slags: d.slags || '', sted: d.sted || '', dato: d.dato || '' };
+  const besked = { slags: String(d.slags || '') };
+  for (const k of BESKED_FELTER) if (d[k]) besked[k] = String(d[k]);
   e.waitUntil(self.registration.showNotification(d.titel || 'Arytmi', {
     body: d.tekst || '',
     icon: 'brand/arytmi_logo_2026/favicon/arytmi_A_192.png',
     lang: 'da',
     // Samme tur, samme besked: en gentagelse erstatter den gamle.
-    tag: 'arytmi-' + besked.slags + '-' + besked.dato,
+    tag: 'arytmi-' + besked.slags + '-' + (besked.tur || besked.dato || ''),
     data: besked
   }));
 });
@@ -162,7 +169,8 @@ self.addEventListener('notificationclick', e => {
       return;
     }
     /* Ellers åbnes den med beskeden i adressen; app.js læser den ved opstart. */
-    const q = new URLSearchParams({ besked: besked.slags || 'afholdt', sted: besked.sted || '', dato: besked.dato || '' });
+    const q = new URLSearchParams({ besked: besked.slags || 'afholdt' });
+    for (const k of BESKED_FELTER) if (besked[k]) q.set(k, besked[k]);
     await self.clients.openWindow(new URL('./?' + q, self.registration.scope).href);
   })());
 });
