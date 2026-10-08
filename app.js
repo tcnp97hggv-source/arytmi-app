@@ -766,7 +766,7 @@ function friskState(){
        Feltet læses ALTID gennem temaValg(), som falder tilbage på 'døgn' —
        så gamle tilstande uden feltet virker uden en migration. */
     profil:{ email:'', telefon:'', navn:'', fødselsdag:'', notifikationer:true,
-             tema:'døgn', partner:{ navn:'', telefon:'', status:null } },
+             tema:'døgn', partner:{ navn:'', email:'', status:null } },
     /* ---- flere ture ad gangen (31/8, OD) ----
        Før var der ÉN tur: s.forberedelse. Nu ligger de kommende ture i
        s.arytmer, og s.aktivId peger på den, man arbejder på lige nu.
@@ -855,6 +855,12 @@ if(typeof ArytmiSync !== "undefined"){
       ids.forEach(id => { if(s.deltVarsel.indexOf(id) === -1) s.deltVarsel.push(id); });
     }
   });
+}
+/* En invitation som fast rejsemakker, der venter på svar (K24, 7/10).
+   Lidt efter opstart, så sessionen er på plads. Uden login svarer serveren
+   ingenting, og der sker intet. */
+if(typeof ArytmiAuth !== "undefined" && ArytmiAuth.tilgaengelig && ArytmiAuth.tilgaengelig()){
+  setTimeout(() => { partnerTjekModtaget(); }, 2000);
 }
 
 /* TRÆK NED FOR AT OPDATERE (KN 28/9: "de fleste apps, der kan man trække
@@ -977,7 +983,7 @@ function indlæs(){
       if(g.profil && g.profil.notifikationer == null) g.profil.notifikationer = true;
       /* migration 6/9: den faste partner. Gamle gemte tilstande har ingen —
          uden dette felt ville profilskærmen kaste på første tegning. */
-      if(g.profil && !g.profil.partner) g.profil.partner = { navn:'', telefon:'', status:null };
+      if(g.profil && !g.profil.partner) g.profil.partner = { navn:'', email:'', status:null };
       /* migration 14/8: egne punkter flyttet ud af turen og op i staten, så de
          overlever, at man kører af sted. Dem, der ligger i en igangværende
          forberedelse, tages med op — ellers ville folk miste det, de allerede
@@ -2422,6 +2428,11 @@ function heroScene(variant, H){
       </g>
     </g>
     <g transform="translate(0 ${lo})">
+      <!-- LANDSKABET SPEJLVENDT (KN 7/10): "så bilen ikke står ude i havet".
+           Bilen flyttede til højre 5/10, og dér lå vandet. Kun landskabet
+           vendes om midten (x=215) — himlen, sol, måne og bilen står, hvor
+           de stod. Tegningen selv er urørt. -->
+      <g transform="matrix(-1 0 0 1 430 0)">
       ${nat ? `
       <path d="M0 252 C60 228 120 242 180 234 C250 225 300 248 350 238 C390 231 415 238 430 234 V368 H0 Z" fill="${p.b1}"/>
       <rect x="0" y="244" width="430" height="30" fill="url(#dis-${sfx})" style="animation:drift 26s ease-in-out infinite alternate"/>
@@ -2437,6 +2448,7 @@ function heroScene(variant, H){
       <path d="M0 316 C90 300 180 316 270 308 C340 302 400 312 430 306 V368 H0 Z" fill="${p.b3}"/>
       <path d="M0 330 H430 V${H-lo+20} H0 Z" fill="${p.b3}"/>
 ` : kystlandskab(p, H, lo, sfx, lys.sol+(1-lys.sol)*fase.belyst)}
+      </g>
       ${bilenMedParret(p, nat, nat ? 1 : lys.mørke, nat ? 0 : (lys.fra==='klarDag' ? 1-lys.andel : 0) + (lys.til==='klarDag' ? lys.andel : 0), sfx)}
     </g>
     <rect width="430" height="${H}" fill="url(#vig-${sfx})"/>
@@ -2999,6 +3011,8 @@ async function efterLogin(){
     if(typeof profil.notifikationer === 'boolean') s.profil.notifikationer = profil.notifikationer;
     gem();
   }
+  /* Er hun inviteret som fast rejsemakker? Så spørger appen nu (K24). */
+  partnerTjekModtaget();
   if(s.profil.navn){
     // Har hun været her før, skal hun ikke gennem velkomsten igen.
     s.onboarded = true; gem();
@@ -7785,31 +7799,68 @@ function lukSpontanModal(){
    om, for det er dem, der viser svaret. */
 function spontanFelt(felt, værdi){ if(spontanKladde) spontanKladde[felt] = værdi; }
 function spontanBedøm(felt, tal){ if(spontanKladde){ spontanKladde[felt] = tal; tegnSpontanModal(); } }
+/* "Ret" under turens navn folder sted og dato ud. Kun i kladden — det
+   gemmes ikke på turen. */
+function spontanRetTur(){ if(spontanKladde){ spontanKladde.retTur = true; tegnSpontanModal(); } }
 function tegnSpontanModal(){
   const kort = document.getElementById('spontan-kort');
   const k = spontanKladde;
   if(!kort || !k) return;
-  /* Stjerner, ikke prikker (KN 5/10). Knappen er stadig ét tal, så en
-     skærmlæser hører "3 af 5" og ikke fem gange "stjerne". */
-  const bedøm = (felt, tekst) => `
-    <div class="bedøm-række"><span style="font-size:14px;flex:1">${tekst}</span>
-      <div class="stjerne-valg" role="group" aria-label="${esc(tekst)}">${[1,2,3,4,5].map(tal =>
-        `<button class="${k[felt] >= tal ? 'valgt' : ''}" aria-label="${esc(t('destination.stjernearia','{n} af 5 stjerner',{n:tal}))}" aria-pressed="${k[felt] === tal}" onclick="spontanBedøm('${felt}',${tal})">★</button>`).join('')}
+  /* NYT UDSEENDE (KN 7/10: "Det er ikke flot lavet."). Før var det et skema:
+     en lille etiket, to inputfelter øverst og tre spørgsmål, der brækkede
+     over to linjer ved siden af grå tegn-stjerner. Nu:
+       • en rigtig overskrift i serif, og turen selv (sted + dato) som kortets
+         hoved — ikke som felter. "Ret" folder felterne ud. En spontan tur
+         har intet at vise endnu, så dér står felterne fremme fra start.
+       • hvert spørgsmål på sin egen rolige flade, med appens tynde
+         streg-ikoner, stjernerne under spørgsmålet og et ord for svaret.
+     Stjernerne er stadig ét tal pr. knap, så en skærmlæser hører "3 af 5"
+     og ikke fem gange "stjerne" (KN 5/10). */
+  const spontan = k.id === null;
+  const visFelter = spontan || k.retTur;
+  const ordListe = ['', t('loggen.vurdering1','Skuffende'), t('loggen.vurdering2','Så som så'),
+    t('loggen.vurdering3','God'), t('loggen.vurdering4','Rigtig god'), t('loggen.vurdering5','Fantastisk')];
+  const ord = n => ordListe[n] || '';
+  const bedøm = (felt, ikon, tekst) => `
+    <div class="anm-spm${k[felt] ? ' besvaret' : ''}">
+      <div class="anm-spm-top">${ik(ikon)}<span>${tekst}</span></div>
+      <div class="anm-spm-svar">
+        <div class="stjerne-valg" role="group" aria-label="${esc(tekst)}">${[1,2,3,4,5].map(tal =>
+          `<button class="${k[felt] >= tal ? 'valgt' : ''}" aria-label="${esc(t('destination.stjernearia','{n} af 5 stjerner',{n:tal}))}" aria-pressed="${k[felt] === tal}" onclick="spontanBedøm('${felt}',${tal})">${ik('stjerne')}</button>`).join('')}
+        </div>
+        <span class="anm-ord" aria-hidden="true">${ord(k[felt])}</span>
       </div>
     </div>`;
+  const år = (k.dato || '').slice(0,4);
   kort.innerHTML = `
-    <div class="etiket">${k.id === null ? t('faelles.logspontan','Log en spontan tur') : t('turen.anmeldturen','Anmeld turen')}</div>
-    <p style="margin:6px 0 4px">${k.id === null
-      ? t('loggen.spontanbrod','Turen, I bare tog. Skriv den ind, så tæller den med i året.')
-      : t('loggen.anmeldbrod','Anmeldelsen er kun til jer selv — brug den, når I planlægger de næste ture.')}</p>
-    <label class="felt-etiket">${t('loggen.dato','Dato')}</label>
-    <input type="date" value="${k.dato}" onchange="spontanFelt('dato',this.value)">
-    <label class="felt-etiket">${t('loggen.destination','Destination')}</label>
-    <input type="text" placeholder="${esc(t('loggen.stedplads','Hvor kørte I hen?'))}" value="${esc(k.sted)}" oninput="spontanFelt('sted',this.value)">
-    <div style="border-top:1px solid var(--linje);margin:18px 0 0"></div>
-    ${bedøm('destination',t('loggen.spmdestination','Hvor god var destinationen?'))}
-    ${bedøm('komfort',t('loggen.spmkomfort','Hvor god var komforten?'))}
-    ${bedøm('hygge',t('loggen.spmhygge','Hvor hyggelig var turen for jer?'))}
+    <div class="anm-hoved">
+      <div class="etiket">${spontan ? t('faelles.logspontan','Log en spontan tur') : t('turen.anmeldturen','Anmeld turen')}</div>
+      <h2 class="anm-titel">${t('loggen.anmeldtitel','Hvordan var turen?')}</h2>
+      ${visFelter ? '' : `
+      <div class="anm-tur">
+        ${ik('nål')}
+        <div class="anm-tur-tekst">
+          <div class="anm-sted">${esc(k.sted || t('loggen.udennavn','Turen uden navn'))}</div>
+          <div class="anm-dato">${k.dato ? esc(pænDato(k.dato)+' '+år) : ''}</div>
+        </div>
+        <button class="som-link anm-ret" onclick="spontanRetTur()">${t('loggen.rettur','Ret')}</button>
+      </div>`}
+      <p class="anm-brød">${spontan
+        ? t('loggen.spontanbrod','Turen, I bare tog. Skriv den ind, så tæller den med i året.')
+        : t('loggen.anmeldbrod','Anmeldelsen er kun til jer selv — brug den, når I planlægger de næste ture.')}</p>
+    </div>
+    ${visFelter ? `
+    <div class="anm-felter">
+      <label class="felt-etiket">${t('loggen.destination','Destination')}</label>
+      <input type="text" placeholder="${esc(t('loggen.stedplads','Hvor kørte I hen?'))}" value="${esc(k.sted)}" oninput="spontanFelt('sted',this.value)">
+      <label class="felt-etiket">${t('loggen.dato','Dato')}</label>
+      <input type="date" value="${k.dato}" onchange="spontanFelt('dato',this.value)">
+    </div>` : ''}
+    <div class="anm-bedøm">
+      ${bedøm('destination','nål',t('loggen.spmdestination','Hvor god var destinationen?'))}
+      ${bedøm('komfort','måne',t('loggen.spmkomfort','Hvor god var komforten?'))}
+      ${bedøm('hygge','hjerte',t('loggen.spmhygge','Hvor hyggelig var turen for jer?'))}
+    </div>
     <!-- To felter i stedet for én kommentar (KN og OD 5/10). En kommentar
          skrevet før står urørt på turen og vises stadig på kortet. -->
     <label class="felt-etiket">${t('loggen.godt','Hvad var godt?')}</label>
@@ -8323,14 +8374,37 @@ function skærmLog(){
 
    Prototype: SMS'en sendes ikke rigtigt, og "adgang" er et flag. Når der
    kommer en backend, er det HER, den skal hægtes på — ikke i turene. */
-function partner(){ return (s.profil && s.profil.partner) || { navn:'', telefon:'', status:null }; }
+/* PÅ MAIL SIDEN 7/10 (K24). Kennet: "rejsemakkeren får en mail og ikke en
+   sms. Det skal foregå på præcis samme måde som en alm bruger." Kortet
+   spørger derfor om navn og MAIL. Kontoen laves af invitationen, og
+   rejsemakkeren opretter sig i appen med koden på mail — som en kunde.
+   Først når hun siger ja i appen (`partnerTjekModtaget`), er I koblet. */
+function partner(){ return (s.profil && s.profil.partner) || { navn:'', email:'', status:null }; }
 function partnerAktiv(){ return partner().status === 'aktiv'; }
 function partnerFelt(felt, værdi){
-  if(!s.profil.partner) s.profil.partner = { navn:'', telefon:'', status:null };
+  if(!s.profil.partner) s.profil.partner = { navn:'', email:'', status:null };
   s.profil.partner[felt] = værdi;
   gem();
   const k = $('partnerKnap');
-  if(k) k.disabled = !(s.profil.partner.navn && s.profil.partner.telefon);
+  if(k) k.disabled = !(s.profil.partner.navn && s.profil.partner.email);
+}
+/* Teksterne i invitationsmailen. De vises ikke i appen, men de står HER,
+   så de findes i bagrummet og kan rettes dér. `inviter-partner` læser dem
+   fra det udgivne bundt (_shared/rejsemakker.ts) og har de samme
+   faldbakker — test/rejsemakker.test.mjs holder de to ens. */
+function rejsemakkerMailTekster(){
+  return [
+    t('partner.mailemne','{fra} vil dele Arytmi med dig'),
+    t('partner.mailhej','Hej {navn},'),
+    t('partner.mailbrod','{fra} har inviteret dig som fast rejsemakker i Arytmi. Som rejsemakkere deler I appen og de ture, I planlægger sammen — retter den ene, står det hos den anden.'),
+    t('partner.mailtrin1','Læg Arytmi på din hjemmeskærm. Åbn siden på telefonen.'),
+    t('partner.mailios','iPhone: åbn siden i Safari, tryk på Del-knappen, og vælg "Føj til hjemmeskærm".'),
+    t('partner.mailandroid','Android: tryk på de tre prikker øverst til højre, og vælg "Føj til startskærm" eller "Installer app".'),
+    t('partner.mailtrin2','Åbn Arytmi fra hjemmeskærmen, og tryk "Opret dig". Skriv den mailadresse, denne mail er sendt til, og tryk "Send mig en kode". Skriv koden, og vælg dit kodeord.'),
+    t('partner.mailtrin2kendt','Åbn Arytmi fra hjemmeskærmen, og log ind med din mailadresse. Har du aldrig valgt et kodeord, så tryk "Opret dig" i stedet.'),
+    t('partner.mailtrin3','Sig ja tak, når appen spørger, om du vil dele Arytmi med {fra}. Så er I koblet sammen.'),
+    t('partner.mailudloeb','Invitationen gælder i {dage} dage. Kender du ikke {fra}, kan du se bort fra mailen — så sker der ingenting.')
+  ];
 }
 /* INVITATIONEN ER RIGTIG NU (fase 3, 11/9).
 
@@ -8345,26 +8419,62 @@ function partnerFelt(felt, værdi){
    af den samme besked er to steder at rette, og det ene sted løj. */
 async function partnerInviter(){
   const pa = partner();
-  if(!(pa.navn && pa.telefon)){ flash('Skriv både navn og telefonnummer.'); return; }
+  if(!(pa.navn && pa.email)){ flash(t('partner.mangler','Skriv både navn og mailadresse.')); return; }
   const knap = $('partnerKnap');
-  if(knap){ knap.disabled = true; knap.textContent = 'Sender…'; }
+  if(knap){ knap.disabled = true; knap.textContent = t('partner.sender','Sender…'); }
 
-  const svar = await ArytmiAuth.inviterPartner(pa.navn, pa.telefon);
+  const svar = await ArytmiAuth.inviterPartner(pa.navn, pa.email);
 
   if(!svar.ok){
     /* Funktionens egen besked, ord for ord — den ved, hvad der gik galt.
-       Er GATEWAYAPI_TOKEN ikke sat, siger den "Invitationer er ikke sat
+       Er RESEND_API_KEY ikke sat, siger den "Invitationer er ikke sat
        op", og så er det DET, der skal stå på skærmen. Ikke "prøv igen". */
-    if(knap){ knap.disabled = false; knap.innerHTML = ik('telefon') + ' Giv fuld adgang'; }
+    if(knap){ knap.disabled = false; knap.innerHTML = ik('mail') + ' ' + t('partner.givadgang','Giv fuld adgang'); }
     flash(svar.fejl);
     return;
   }
 
-  s.profil.partner.status  = 'sendt';
-  s.profil.partner.telefon = svar.telefon || pa.telefon;
-  s.profil.partner.sendt   = new Date().toISOString();
+  s.profil.partner.status = 'sendt';
+  s.profil.partner.email  = svar.email || pa.email;
+  s.profil.partner.sendt  = new Date().toISOString();
   gem(); tegn();
-  infoModal(t('partner.smsmodal','SMS\'en er sendt til <b>{navn}</b>. Når linket åbnes og der vælges et kodeord, deler I appen og alle ture.',{navn:pa.navn}), t('faelles.godt','Godt'));
+  infoModal(t('partner.mailmodal','Vi har sendt en mail til <b>{navn}</b>. Når {navn} har oprettet sig i Arytmi og sagt ja, deler I appen og alle ture.',{navn:esc(pa.navn)}), t('faelles.godt','Godt'));
+}
+
+/* DEN INVITEREDE SIGER JA (eller nej). Spørges, når hun er logget ind —
+   efter login og ved opstart. Først ved ja kobles og låses I (0051). */
+async function partnerTjekModtaget(){
+  if(typeof ArytmiAuth === 'undefined' || !ArytmiAuth.tilgaengelig() || !ArytmiAuth.hentModtagetInvitation) return;
+  if(partnerAktiv() || document.getElementById('rejsemakker-modal')) return;
+  const r = await ArytmiAuth.hentModtagetInvitation();
+  if(!r.ok || !r.invitation) return;
+  const fra = r.invitation.fra || t('partner.nogen','Din rejsemakker');
+  const div = document.createElement('div');
+  div.id = 'rejsemakker-modal';
+  div.className = 'modal-bag';
+  div.innerHTML = `
+    <div class="modal-kort">
+      <div style="color:var(--rav);margin-bottom:8px">${ik('folk')}</div>
+      <h3 style="margin:0 0 10px">${t('partner.invitationtitel','{navn} vil dele Arytmi med dig',{navn:esc(fra)})}</h3>
+      <p>${t('partner.invitationtekst','Som faste rejsemakkere deler I appen og alle ture, planer og pakkelister. Retter den ene, står det hos den anden. Man kan kun have én fast rejsemakker.')}</p>
+      <div class="modal-knapper">
+        <button class="knap kontur bred" id="rejsemakker-nej">${t('partner.nejtak','Nej tak')}</button>
+        <button class="knap primær bred" id="rejsemakker-ja">${t('partner.jatak','Ja tak')}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+  const svar = async ja => {
+    div.remove();
+    const s2 = await ArytmiAuth.svarPartnerInvitation(r.invitation.id, ja);
+    if(!s2.ok){ flash(s2.fejl); return; }
+    if(!ja){ flash(t('partner.afvist','Invitationen er afvist.'), 'kryds'); return; }
+    s.profil.partner = { navn: r.invitation.fra || '', email: '', status: 'aktiv' };
+    gem(); tegn();
+    flash(t('partner.nukoblet','I deler nu Arytmi med hinanden.'), 'tjek');
+    partnerHentNavn();
+  };
+  document.getElementById('rejsemakker-nej').onclick = () => svar(false);
+  document.getElementById('rejsemakker-ja').onclick = () => svar(true);
 }
 
 /* HVORNÅR BLIVER "AFVENTER" TIL "AKTIV"?
@@ -8431,12 +8541,12 @@ async function partnerOpdaterStatus(){
          også efter den er indløst (`egne sendte invitationer laeses`).
          Den inviterede har ingen sendt invitation og får derfor ingen navn;
          der falder kortet tilbage på "Din rejsemakker". */
-      let navn = '', telefon = '';
+      let navn = '', email = '';
       if(p.partner.jegInviterede && ArytmiAuth.hentIndloestInvitation){
         const brugt = await ArytmiAuth.hentIndloestInvitation();
         if(brugt.ok && brugt.invitation){
           navn = brugt.invitation.navn || '';
-          telefon = brugt.invitation.telefon || '';
+          email = brugt.invitation.email || '';
         }
       }
       /* Den inviterede har ingen sendt invitation at hente navnet fra.
@@ -8445,7 +8555,7 @@ async function partnerOpdaterStatus(){
         const n = await ArytmiAuth.hentPartnerNavn();
         if(n.ok && n.navn) navn = n.navn;
       }
-      s.profil.partner = { navn, telefon, status:'aktiv' };
+      s.profil.partner = { navn, email, status:'aktiv' };
       gem();
       if(aktivSkærm === 'profil') tegn();
       return;
@@ -8454,7 +8564,7 @@ async function partnerOpdaterStatus(){
     if(inv.ok && inv.invitation){
       s.profil.partner = {
         navn: inv.invitation.navn || '',
-        telefon: inv.invitation.telefon || '',
+        email: inv.invitation.email || '',
         status: 'sendt'
       };
       gem();
@@ -8488,8 +8598,26 @@ async function partnerOpdaterStatus(){
        den anden kan have fjernet det fra sin side, eller support kan have
        nulstillet det (0011). Kortet skal ikke blive ved med at love fuld
        adgang til én, der ikke har den laengere. */
-    if(pa.status !== 'aktiv') return;
-    s.profil.partner = { navn:'', telefon:'', status:null };
+    if(pa.status !== 'aktiv'){
+      /* SAGDE HUN NEJ? (K24, 7/10) Med mailen svarer rejsemakkeren selv i
+         appen — og et nej skal kortet kunne se, ellers står det og venter
+         for evigt. Er der ingen åben invitation mere (nej, trukket tilbage
+         eller udløbet), går kortet tilbage til formularen. Fik vi ikke
+         spurgt, røres intet. */
+      const åben = ArytmiAuth.hentSendtInvitation ? await ArytmiAuth.hentSendtInvitation() : { ok:false };
+      if(!åben.ok || åben.invitation) return;
+      const sidste = ArytmiAuth.hentSidsteInvitation ? await ArytmiAuth.hentSidsteInvitation() : { ok:false };
+      if(!sidste.ok) return;
+      const navn = pa.navn;
+      s.profil.partner = { navn:'', email:'', status:null };
+      gem();
+      if(aktivSkærm === 'profil') tegn();
+      if(sidste.invitation && sidste.invitation.svar === 'nej'){
+        flash(t('partner.sagdenej','{navn} sagde nej tak til invitationen.',{navn: navn || t('partner.nogen','Din rejsemakker')}));
+      }
+      return;
+    }
+    s.profil.partner = { navn:'', email:'', status:null };
   }
 
   gem();
@@ -8510,15 +8638,17 @@ async function partnerHentNavn(){
   return true;
 }
 
-/* Et nyt forsøg. Der findes ikke en vej til at kalde en sendt invitation
-   tilbage — `partner_invitation` må hverken læses eller skrives af en
-   almindelig bruger, og det er med vilje. Men serveren dræber selv alle
-   uindløste invitationer, når der laves en ny, så en ny invitation ER
-   fortrydelsen. Det siger kortet nu i stedet for at love noget andet. */
-function partnerNyInvitation(){
+/* Træk invitationen tilbage (K24, 7/10). Serveren lukker den, og lavede den
+   en konto, der aldrig er taget i brug, fjernes kontoen også — en stavefejl
+   i mailen skal ikke efterlade noget hos os. Bagefter står formularen
+   igen med navn og mail, så en rettet adresse er ét tryk væk. */
+async function partnerNyInvitation(){
   if(!s.profil.partner) return;
+  const svar = ArytmiAuth.traekPartnerInvitation ? await ArytmiAuth.traekPartnerInvitation() : { ok:true };
+  if(!svar.ok){ flash(svar.fejl); return; }
   s.profil.partner.status = null;
   gem(); tegn();
+  flash(t('partner.trukket','Invitationen er trukket tilbage.'), 'kryds');
 }
 
 /* At fjerne adgangen er en RIGTIG sletning nu — rækken i `partner` ryger,
@@ -8534,14 +8664,14 @@ function partnerFjern(){
   bekræft(t('partner.fjernspm','Fjern {navn}s adgang til appen og alle jeres ture?<br><br>Du kan <b>ikke</b> oprette en ny fast rejsemakker bagefter. Det kan kun gøres én gang.',{navn}), async ()=>{
     const svar = await ArytmiAuth.fjernPartner();
     if(!svar.ok){ flash(svar.fejl); return; }
-    s.profil.partner = { navn:'', telefon:'', status:null };
+    s.profil.partner = { navn:'', email:'', status:null };
     gem(); tegn();
     flash(t('partner.adgangfjernet','Adgangen er fjernet.'), 'kryds');
   });
 }
 function partnerKort(){
   const pa = partner();
-  const klar = !!(pa.navn && pa.telefon);
+  const klar = !!(pa.navn && pa.email);
   const hoved = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
       <span style="color:var(--rav)">${ik('folk')}</span><h3>${t('partner.overskrift','Din faste rejsemakker')}</h3>
     </div>`;
@@ -8584,19 +8714,19 @@ function partnerKort(){
       </div>`:''}`;
   }
   if(pa.status==='sendt'){
-    /* Ingen tegning af SMS'en. Vi viser, hvad vi VED: hvem, hvilket
-       nummer, og hvad linket kan. Teksten selv står i den funktion, der
-       sendte den — en kopi her ville kunne drive fra den. */
+    /* Vi viser, hvad vi VED: hvem, hvilken mail, og hvad der skal ske.
+       Mailens tekst står i `inviter-partner` (og i bagrummet) — en kopi
+       her ville kunne drive fra den. */
     return `<div class="kort">
       ${hoved}
-      <div class="gæst-linje venter" style="margin:10px 0 0">${ik('ur')} ${t('partner.afventer','Afventer {navn}',{navn:pa.navn})}</div>
+      <div class="gæst-linje venter" style="margin:10px 0 0">${ik('ur')} ${t('partner.afventer','Afventer {navn}',{navn:esc(pa.navn)})}</div>
       <div class="ob-mail" style="margin-top:12px">
-        <div class="m-top">${ik('telefon')} ${t('partner.smssendt','SMS sendt til {nummer}',{nummer:ArytmiAuth.visTelefon(pa.telefon) || pa.telefon})}</div>
-        <div class="m-krop"><p class="dæmpet" style="font-size:13.5px;margin:0">${t('partner.linketvirker','Linket virker i <b>14 dage</b> og kun <b>én gang</b>. Når det er åbnet, og der er valgt et kodeord, deler I appen og alle ture med det samme.')}</p></div>
+        <div class="m-top">${ik('mail')} ${t('partner.mailsendt','Mail sendt til {mail}',{mail:esc(pa.email||'')})}</div>
+        <div class="m-krop"><p class="dæmpet" style="font-size:13.5px;margin:0">${t('partner.mailventer','{navn} skal åbne Arytmi, oprette sig med den mailadresse og sige ja. Så deler I appen og alle ture. Invitationen gælder i <b>30 dage</b>.',{navn:esc(pa.navn)})}</p></div>
       </div>
-      <p class="dæmpet" style="font-size:12px;margin-top:10px">${t('partner.kominteffrem','Kom den ikke frem? Send en ny — så holder den gamle op med at virke.')}</p>
+      <p class="dæmpet" style="font-size:12px;margin-top:10px">${t('partner.forkertmail','Forkert mailadresse, eller kom mailen ikke frem? Træk invitationen tilbage, og send en ny.')}</p>
       <div class="stille-række" style="margin-top:4px">
-        <button class="knap stille" onclick="partnerNyInvitation()">${t('partner.nyinvitation','Send en ny invitation')}</button>
+        <button class="knap stille" onclick="partnerNyInvitation()">${t('partner.traek','Træk invitationen tilbage')}</button>
       </div>
     </div>`;
   }
@@ -8605,12 +8735,12 @@ function partnerKort(){
     <p class="dæmpet" style="font-size:13.5px">${t('partner.hvorfor','Deler du hverdagen med nogen, skal I ikke planlægge hver for sig. Din faste rejsemakker får fuld adgang til appen og alle ture — ikke bare ét link til én liste.')}</p>
     <label class="felt-etiket">${t('partner.navn','Navn')}</label>
     <input type="text" placeholder="${esc(t('partner.navnplads','Fx Anne'))}" value="${esc(pa.navn||'')}" oninput="partnerFelt('navn',this.value)">
-    <label class="felt-etiket">${t('partner.telefon','Telefonnummer')}</label>
-    <input type="tel" inputmode="tel" placeholder="${esc(t('partner.telefonplads','12 34 56 78'))}" value="${esc(pa.telefon||'')}" oninput="partnerFelt('telefon',this.value)">
+    <label class="felt-etiket">${t('partner.mail','Mailadresse')}</label>
+    <input type="email" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('partner.mailplads','navn@eksempel.dk'))}" value="${esc(pa.email||'')}" oninput="partnerFelt('email',this.value)">
     <button class="knap primær bred" id="partnerKnap" style="margin-top:16px" ${klar?'':'disabled'} onclick="partnerInviter()">
-      ${ik('telefon')} ${t('partner.givadgang','Giv fuld adgang')}
+      ${ik('mail')} ${t('partner.givadgang','Giv fuld adgang')}
     </button>
-    <p class="dæmpet" style="font-size:12px;text-align:center;margin-top:8px">${t('partner.engang','Din rejsemakker får en SMS med et link. Det kan kun gøres én gang.')}</p>
+    <p class="dæmpet" style="font-size:12px;text-align:center;margin-top:8px">${t('partner.engangmail','Din rejsemakker får en mail med en vejledning. I bliver koblet sammen, når din rejsemakker siger ja i appen — og det kan kun ske én gang.')}</p>
   </div>`;
 }
 /* Kontakten. Slås den TIL, hentes rækkerne med det samme — man skal ikke
@@ -8815,7 +8945,7 @@ let redLangt = null, redSlugKlik = false;
 document.addEventListener("pointerdown", e => {
   if(!editorTil() || redVælger) return;
   const mål = e.target;
-  if(mål.closest && (mål.closest("#red-bjaelke") || mål.closest(".modal-bag") || mål.closest("input,textarea,select"))) return;
+  if(mål.closest && (mål.closest("#red-bjaelke") || mål.closest(".modal-bag") || mål.closest("input,textarea,select") || mål.closest(".red-billede"))) return;
   const x = e.clientX, y = e.clientY;
   clearTimeout(redLangt && redLangt.tid);
   redLangt = { x, y, tid: setTimeout(() => {
@@ -9295,8 +9425,8 @@ function skærmRedSted(id){
     <div class="kort">
       <div class="etiket">${t('editor.billeder','Billeder')}</div>
       <div class="red-billeder">
-        ${bill.map((b, i) => `<div class="red-billede">
-          <img src="${esc(b)}" alt="" loading="lazy">
+        ${bill.map((b, i) => `<div class="red-billede" data-i="${i}" onpointerdown="redTrækStart(event,${i})">
+          <img src="${esc(b)}" alt="" loading="lazy" draggable="false">
           ${i === 0 ? `<span class="red-forside">${t('editor.forsidebillede','Forside')}</span>`
                     : `<button class="red-bill-knap venstre" onclick="redFørsteBillede(${i})" aria-label="${esc(t('editor.goerforside','Gør til forsidebillede'))}">${ik('stjerne')}</button>`}
           <button class="red-bill-knap" onclick="redFjernBillede(${i})" aria-label="${esc(t('editor.fjernbillede','Fjern billedet'))}">${ik('kryds')}</button>
@@ -9304,6 +9434,7 @@ function skærmRedSted(id){
         <label class="red-billede red-tilfoej">${ik('plus')}<span>${t('editor.tilfoejbillede','Tilføj billede')}</span>
           <input type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="redTilføjBillede(this)" class="sr-only"></label>
       </div>
+      ${bill.length > 1 ? `<div class="dæmpet red-hjælp">${t('editor.flythjaelp','Hold fingeren på et billede, og træk det hen, hvor det skal stå. Det første er forsidebilledet.')}</div>` : ''}
       <div class="dæmpet red-hjælp">${t('editor.billedhjaelp','Billederne skaleres ned, og nummerplader sløres, før de lægges op. Billederne gemmes med det samme.')}</div>
     </div>
 
@@ -9464,6 +9595,79 @@ async function redFørsteBillede(i){
   liste.unshift(b);
   if(await redGemBilleder(liste)) tegn();
 }
+/* FLYT BILLEDERNE (KN 8/10: "flytte rundt på billederne og sætte dem i den
+   rækkefølge vi gerne vil have på stederne"). Hold fingeren på et billede,
+   til det løfter sig, og træk det på plads — med en mus trækker man bare.
+   Holdet er der, fordi et stryg hen over billederne stadig skal rulle
+   skærmen. Pladsen flytter med i gitteret, mens man trækker, og
+   rækkefølgen gemmes, når man slipper — med det samme, som resten af
+   billederne. Klonen ligger i <body>, så ingen transform over den flytter
+   den væk fra fingeren. */
+let redTræk = null;
+function redTrækStart(e, i){
+  if(redTræk || !redForm || (e.button || 0) > 0 || e.target.closest('button')) return;
+  redTræk = { i, el: e.currentTarget, id: e.pointerId, x: e.clientX, y: e.clientY, løftet: false, tid: null };
+  if(e.pointerType === 'mouse') e.preventDefault();
+  else redTræk.tid = setTimeout(redLøft, 250);
+}
+function redLøft(){
+  const d = redTræk;
+  if(!d || d.løftet || !d.el.isConnected) return;
+  clearTimeout(d.tid);
+  const r = d.el.getBoundingClientRect();
+  const sky = d.el.cloneNode(true);
+  sky.removeAttribute('onpointerdown');
+  sky.removeAttribute('data-i');
+  sky.classList.add('red-svæver');
+  Object.assign(sky.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+  document.body.appendChild(sky);
+  d.sky = sky;
+  d.løftet = true;
+  d.el.classList.add('red-pladsen');
+  d.el.parentNode.classList.add('trækker');
+  if(navigator.vibrate) try{ navigator.vibrate(12); }catch(_){}
+}
+async function redTrækSlut(gem){
+  const d = redTræk;
+  redTræk = null;
+  if(!d) return;
+  clearTimeout(d.tid);
+  if(!d.løftet) return;
+  d.sky.remove();
+  redSlugKlik = true;
+  setTimeout(() => { redSlugKlik = false; }, 700);
+  if(!d.el.isConnected || !redForm){ tegn(); return; }
+  const ny = Array.from(d.el.parentNode.querySelectorAll('.red-billede[data-i]'), x => Number(x.dataset.i));
+  d.el.classList.remove('red-pladsen');
+  if(!gem || ny.every((n, k) => n === k)){ tegn(); return; }
+  const gammel = redForm.billeder || [];
+  const ok = await redGemBilleder(ny.map(n => gammel[n]));
+  tegn();
+  if(ok) flash(t('editor.raekkefoelgegemt','Rækkefølgen er gemt.'), 'tjek');
+}
+document.addEventListener("pointermove", e => {
+  const d = redTræk;
+  if(!d || e.pointerId !== d.id) return;
+  if(!d.løftet){
+    const flyt = Math.hypot(e.clientX - d.x, e.clientY - d.y);
+    if(d.tid){ if(flyt > 8) redTrækSlut(false); return; }   // fingeren ruller
+    if(flyt < 5) return;
+    redLøft();
+    if(!d.løftet) return;
+  }
+  e.preventDefault();
+  d.sky.style.transform = `translate(${e.clientX - d.x}px,${e.clientY - d.y}px) scale(1.06)`;
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const mål = under && under.closest('.red-billede[data-i]');
+  if(!mål || mål === d.el || mål.parentNode !== d.el.parentNode) return;
+  const alle = Array.from(d.el.parentNode.querySelectorAll('.red-billede[data-i]'));
+  d.el.parentNode.insertBefore(d.el, alle.indexOf(d.el) < alle.indexOf(mål) ? mål.nextSibling : mål);
+});
+document.addEventListener("pointerup", e => { if(redTræk && e.pointerId === redTræk.id) redTrækSlut(true); });
+document.addEventListener("pointercancel", e => { if(redTræk && e.pointerId === redTræk.id) redTrækSlut(false); });
+/* Mens billedet er løftet, må fingeren ikke rulle skærmen. Kun touchmove
+   kan sige det til telefonen, og kun når lytteren ikke er passiv. */
+document.addEventListener("touchmove", e => { if(redTræk && redTræk.løftet) e.preventDefault(); }, { passive: false });
 
 /* ---------- Profil & indstillinger ----------
 
@@ -10372,7 +10576,7 @@ function tegnSkærmen(){
        skriver i — samme begrundelse som hentningen i sync.js. Er der ingen
        sendt invitation at vente på, returnerer den straks, så de fleste
        besøg på profilen koster ingenting. */
-    case aktivSkærm==='profil':       skærmProfil(); partnerOpdaterStatus(); break;
+    case aktivSkærm==='profil':       skærmProfil(); partnerOpdaterStatus(); partnerTjekModtaget(); break;
     case aktivSkærm==='slet-konto':   skærmSletKonto(); break;
     case aktivSkærm==='invitation':      skærmInvitation(); break;
     /* Gæsten på turen (KN 6/9) — to trin: hvem, og hvem pakker hvad. */
@@ -10420,11 +10624,14 @@ trækForAtOpdatere();
 
 /* ---------- splash ---------- */
 (function visSplash(){
-  const t = new Date().getHours();
-  const variant = (t>=22||t<5) ? 'tur' : 'klar';
+  /* SAMME SCENE HELE DØGNET (KN 7/10): "Bilen og landskabet skal være det
+     samme om det er dag, aften eller nattetema." Indtil i dag skiftede
+     splashen kl. 22–05 til 'tur' — et andet landskab med månen til venstre.
+     'klar' følger selv lyset (sceneLys) og er nat om natten, ligesom
+     forsiden. 'tur' bruges ikke længere nogen steder. */
   const d = document.createElement('div');
   d.id = 'splash';
-  d.innerHTML = heroScene(variant, skærmHøjde()) + `
+  d.innerHTML = heroScene('klar', skærmHøjde()) + `
     <div class="s-mid">
       <div class="s-logo-wrap">${ordmærke(true, true)}</div>
     </div>`;

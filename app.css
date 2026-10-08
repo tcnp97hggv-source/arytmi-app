@@ -1466,6 +1466,9 @@
   .ob-mail{background:var(--p-hvid);border-radius:18px;padding:0;overflow:hidden;box-shadow:0 18px 44px rgba(var(--p-bark-rgb),.16);margin-bottom:16px}
   .ob-mail .m-top{background:var(--p-lys-6);padding:14px 18px;border-bottom:1px solid var(--p-lys-14);font-size:12.5px;color:var(--p-graa-6)}
   .ob-mail .m-krop{padding:22px 20px}
+  /* Mailen er altid hvidt papir - også i aften- og nattemaet, hvor .dæmpet
+     bliver lys creme og forsvandt på det hvide (set 7/10 på rejsemakkerkortet). */
+  .ob-mail .dæmpet{color:var(--p-graa-6)}
   .ob-kode{font-family:"SF Mono",Menlo,monospace;font-size:22px;letter-spacing:4px;color:var(--paa-lys);background:var(--p-lys-10);border-radius:12px;padding:12px 18px;text-align:center;margin:14px 0;font-weight:700}
   .kode-felt{display:flex;gap:10px;justify-content:center;margin:16px 0}
   .kode-cifre{font-family:"SF Mono",Menlo,monospace;font-size:24px;letter-spacing:10px;text-align:center}
@@ -2047,6 +2050,41 @@
   .spontan-kort .bedøm-række{padding:11px 0}
   .spontan-kort .prikker{gap:6px}
   .spontan-kort .prik-valg{width:25px;height:25px}
+
+  /* ---- "Anmeld turen" — nyt udseende (KN 7/10: "Det er ikke flot lavet") ----
+     Overskrift i serif, turen selv som kortets hoved, og hvert spørgsmål på
+     sin egen rolige flade med et streg-ikon, stjernerne og et ord for svaret.
+     Pop-uppen får lidt mindre luft udenom, så fem stjerner og ordet kan stå
+     på én linje ved 375. */
+  #spontan-modal{padding:16px}
+  .spontan-kort{padding:22px 20px 0;max-width:360px}
+  .spontan-kort .anm-titel{font-size:24px;line-height:1.2;margin:8px 0 14px}
+  .anm-tur{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:14px;background:var(--flade-dyb)}
+  .anm-tur > .ik{color:var(--rav);width:22px;height:22px}
+  .anm-tur-tekst{flex:1;min-width:0}
+  .anm-sted{font-family:var(--skrift-display);font-size:18px;font-weight:600;color:var(--overskrift);line-height:1.25;overflow-wrap:anywhere}
+  .anm-dato{font-size:13px;color:var(--dæmpet);margin-top:2px}
+  .anm-dato::first-letter{text-transform:uppercase}
+  .anm-ret{font-size:13.5px;flex-shrink:0;padding:6px 2px}
+  .spontan-kort p.anm-brød{font-size:13.5px;line-height:1.5;color:var(--dæmpet);margin:12px 2px 0}
+  .anm-felter{margin-top:2px}
+  .anm-bedøm{display:flex;flex-direction:column;gap:10px;margin:18px 0 6px}
+  .anm-spm{padding:13px 14px 8px;border-radius:14px;border:1px solid var(--linje);
+    transition:border-color .2s, background-color .2s}
+  .anm-spm.besvaret{border-color:color-mix(in srgb,var(--rav) 40%,var(--linje));
+    background:color-mix(in srgb,var(--rav) 5%,transparent)}
+  .anm-spm-top{display:flex;align-items:center;gap:9px;font-size:14.5px;font-weight:600;color:var(--tekst);line-height:1.35}
+  .anm-spm-top .ik{width:19px;height:19px;color:var(--dæmpet);vertical-align:0}
+  .anm-spm-svar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0 10px;margin-top:4px}
+  .anm-spm .stjerne-valg{margin-left:-7px}
+  .anm-ord{font-size:13px;font-weight:600;color:var(--rav-tekst);padding-right:2px}
+  .anm-ord:empty{display:none}
+  /* Under 360 er der ikke plads til fem stjerner OG "Rigtig god" på én linje.
+     Så står ordet altid under stjernerne — ikke nogle gange ved siden af. */
+  @media (max-width:359px){
+    .anm-spm-svar{flex-direction:column;align-items:flex-start}
+    .anm-ord{padding:0 0 5px}
+  }
 
   /* Vælg alle / Fravælg alle over en emneliste (KN 4/9) */
   .vælg-alle{text-align:right;margin:0 0 4px}
@@ -2782,6 +2820,16 @@
   .red-tilfoej{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;
     border:1.5px dashed var(--linje);background:none;color:var(--gran);font-size:12px;font-weight:600}
   .red-tilfoej .ik{width:22px;height:22px;color:var(--rav)}
+  /* Flyt billederne (KN 8/10): hold og træk. Intet "gem billede"-ark på
+     iPhone under holdet, og ingen markering af tekst. */
+  .red-billede[data-i]{cursor:grab;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  .red-billede img{-webkit-touch-callout:none;pointer-events:none}
+  .red-billeder.trækker .red-bill-knap,.red-billeder.trækker .red-forside{visibility:hidden}
+  .red-billede.red-pladsen{outline:2px dashed var(--rav);outline-offset:-2px}
+  .red-billede.red-pladsen img{opacity:.25}
+  .red-billede.red-svæver{position:fixed;z-index:1000;margin:0;pointer-events:none;cursor:grabbing;
+    transform:scale(1.06);box-shadow:0 14px 30px rgba(var(--p-sort-rgb),.35)}
+  .red-svæver .red-bill-knap,.red-svæver .red-forside{display:none}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
   /* Listedelen i arket (5/10): tilføj, fjern, skjul og vis igen. */
   .red-liste{display:flex;flex-direction:column;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--linje)}
@@ -2813,16 +2861,22 @@
    ikke længere bruges af anmeldelsen. Knappen er 32 px bred, så fem står
    ved siden af spørgsmålet også ved 320. */
 .stjerne-valg{display:flex;gap:0;flex-shrink:0}
-.stjerne-valg button{width:32px;height:36px;padding:0;border:none;background:none;cursor:pointer;
-  font-size:24px;line-height:1;color:var(--p-sand-5);transition:color .15s, transform .15s}
+/* Appens egen tynde streg-stjerne (ik('stjerne')) i stedet for tegnet ★
+   (KN 7/10). Tom: kun stregen, dæmpet. Valgt: fyldt i accenten. */
+.stjerne-valg button{width:36px;height:40px;padding:0;border:none;background:none;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  color:color-mix(in srgb,var(--dæmpet) 55%,transparent);transition:color .15s, transform .15s}
+.stjerne-valg button .ik{width:26px;height:26px;stroke-width:1.35;vertical-align:0;transition:fill .15s}
 .stjerne-valg button.valgt{color:var(--rav)}
+.stjerne-valg button.valgt .ik{fill:currentColor}
 .stjerne-valg button:active{transform:scale(1.15)}
-.stjerne-valg button:focus-visible{outline:2px solid var(--rav);outline-offset:1px;border-radius:6px}
+.stjerne-valg button:focus-visible{outline:2px solid var(--rav);outline-offset:-2px;border-radius:10px}
 .anmeldt-stjerner{display:flex;gap:6px 14px;margin-top:10px;flex-wrap:wrap;font-size:12.5px;color:var(--dæmpet);align-items:center}
 .anmeldt-stjerner > span{display:inline-flex;align-items:center;gap:5px}
 .anmeldt-stjerner .stjerner{font-size:13px}
 @media (max-width:359px){
-  .stjerne-valg button{width:26px;font-size:20px}
+  .stjerne-valg button{width:34px;height:38px}
+  .stjerne-valg button .ik{width:24px;height:24px}
 }
 /* Hjem før afgang på datotrinnet (KN 5/10). */
 .tid-advarsel{margin:12px 4px 0;font-size:13.5px;line-height:1.45;color:var(--fare, #b4533a)}

@@ -355,12 +355,11 @@
      beskeden skal af sted, selv hvis telefonen lukkes i samme sekund.
      `inviter-partner` gør begge dele. Her siger vi til, og rækker svaret
      videre, som det er. */
-  async function inviterPartner(raaNavn, raaTelefon) {
-    const navn = String(raaNavn || '').trim();
-    const telefon = normaliserTelefon(raaTelefon);
-    if (!navn) return { ok: false, fejl: 'Skriv hvad din rejsemakker hedder.' };
-    if (!telefon) return { ok: false, fejl: 'Skriv et telefonnummer, vi kan læse — otte cifre, eller med + og landekode.' };
-
+  /* PÅ MAIL SIDEN 7/10 (K24). Kennet: "rejsemakkeren får en mail og ikke en
+     sms. Det skal foregå på præcis samme måde som en alm bruger." Serveren
+     laver kontoen, gemmer invitationen og sender mailen; rejsemakkeren
+     opretter sig i appen med koden og siger ja (`svarPartnerInvitation`). */
+  async function kaldInviterPartner(krop) {
     const k = faaKlient();
     if (!k) return { ok: false, fejl: 'Ingen forbindelse til Arytmi lige nu.' };
 
@@ -382,18 +381,33 @@
           apikey: PROJEKT.anon,
           Authorization: 'Bearer ' + adgangstoken
         },
-        body: JSON.stringify({ navn, telefon })
+        body: JSON.stringify(krop)
       });
       const svar = await r.json().catch(() => ({}));
       /* Funktionens egen besked, ord for ord. Den ved, hvad der gik galt —
-         låsen, taksten, adgangen, eller at SMS'en ikke kunne sendes — og en
+         låsen, taksten, adgangen, eller at mailen ikke kunne sendes — og en
          almindelig "noget gik galt" ville kaste den viden væk. Præcis den
          fejl, `laesbarFejl` blev skrevet for at undgå. */
       if (!r.ok) return { ok: false, fejl: svar.error || 'Invitationen kunne ikke sendes.' };
-      return { ok: true, telefon };
+      return { ok: true };
     } catch (e) {
       return { ok: false, fejl: 'Ingen forbindelse. Tjek nettet, og prøv igen.' };
     }
+  }
+
+  async function inviterPartner(raaNavn, raaMail) {
+    const navn = String(raaNavn || '').trim();
+    const email = String(raaMail || '').trim().toLowerCase();
+    if (!navn) return { ok: false, fejl: 'Skriv hvad din rejsemakker hedder.' };
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, fejl: 'Skriv en mailadresse, vi kan læse.' };
+    const svar = await kaldInviterPartner({ navn, email });
+    return svar.ok ? { ok: true, email } : svar;
+  }
+
+  /* Træk den åbne invitation tilbage. Lavede den en konto, der aldrig er
+     brugt, fjerner serveren den igen. */
+  async function traekPartnerInvitation() {
+    return kaldInviterPartner({ handling: 'traek' });
   }
 
   /* Er invitationen blevet accepteret? Accepten sker på `arytmi.com/os`, på
@@ -473,12 +487,14 @@
 
      Kun den ÅBNE: brugt eller udløbet er ikke noget, man venter på. */
   async function hentSendtInvitation() {
+    /* Siden 7/10 (0051) bor invitationerne i `rejsemakker_invitation`.
+       Åben = ikke besvaret og ikke udløbet. */
     const k = faaKlient();
     if (!k) return { ok: false };
     try {
-      const { data, error } = await k.from('partner_invitation')
-        .select('navn, telefon, udloeber')
-        .is('brugt_kl', null)
+      const { data, error } = await k.from('rejsemakker_invitation')
+        .select('navn, email, udloeber')
+        .is('svar', null)
         .gt('udloeber', new Date().toISOString())
         .order('oprettet', { ascending: false })
         .limit(1);
@@ -487,6 +503,53 @@
       return { ok: true, invitation: data[0] };
     } catch (e) {
       return { ok: false };
+    }
+  }
+
+  /* Den nyeste invitation, jeg har sendt - uanset svar. Kortet "Afventer
+     Anne" skal kunne sige, at Anne sagde nej tak, i stedet for at vente
+     for evigt. */
+  async function hentSidsteInvitation() {
+    const k = faaKlient();
+    if (!k) return { ok: false };
+    try {
+      const { data, error } = await k.from('rejsemakker_invitation')
+        .select('navn, email, udloeber, svar, besvaret_kl')
+        .order('oprettet', { ascending: false })
+        .limit(1);
+      if (error) return { ok: false };
+      return { ok: true, invitation: (data && data[0]) || null };
+    } catch (e) {
+      return { ok: false };
+    }
+  }
+
+  /* Har JEG fået en invitation? Spørges, når den inviterede er logget ind.
+     `min_rejsemakker_invitation()` (0051) svarer kun om hendes egen åbne
+     invitation og kun med afsenderens fornavn. */
+  async function hentModtagetInvitation() {
+    const k = faaKlient();
+    if (!k) return { ok: false };
+    try {
+      const { data, error } = await k.rpc('min_rejsemakker_invitation');
+      if (error) return { ok: false };
+      const r = Array.isArray(data) ? data[0] : data;
+      return { ok: true, invitation: r && r.id ? { id: r.id, fra: r.fra || '' } : null };
+    } catch (e) {
+      return { ok: false };
+    }
+  }
+
+  /* Ja eller nej. Først ved ja kobles og låses de to (0051). */
+  async function svarPartnerInvitation(id, ja) {
+    const k = faaKlient();
+    if (!k) return { ok: false, fejl: 'Ingen forbindelse til Arytmi lige nu.' };
+    try {
+      const { data, error } = await k.rpc('svar_rejsemakker', { p_id: id, p_ja: !!ja });
+      if (error) return { ok: false, fejl: error.message || laesbarFejl(error) };
+      return { ok: true, svar: data };
+    } catch (e) {
+      return { ok: false, fejl: laesbarFejl(e) };
     }
   }
 
@@ -508,6 +571,18 @@
   async function hentIndloestInvitation() {
     const k = faaKlient();
     if (!k) return { ok: false };
+    /* Siden 7/10: først i de nye invitationer (svar = 'ja'), ellers i den
+       gamle SMS-tabel, hvor partnerskaber fra før K24 har deres navn. */
+    try {
+      const { data, error } = await k.from('rejsemakker_invitation')
+        .select('navn, email, besvaret_kl')
+        .eq('svar', 'ja')
+        .order('besvaret_kl', { ascending: false })
+        .limit(1);
+      if (!error && data && data.length) {
+        return { ok: true, invitation: { navn: data[0].navn, email: data[0].email, brugt_kl: data[0].besvaret_kl } };
+      }
+    } catch (e) { /* falder igennem til den gamle tabel */ }
     try {
       const { data, error } = await k.from('partner_invitation')
         .select('navn, telefon, brugt_kl')
@@ -710,7 +785,8 @@
     logInd, logUd,
     nuvaerendeBruger, bruger_id, harSession, vedUdlogning,
     hentProfil, gemProfil,
-    inviterPartner, hentPartner, fjernPartner, hentSendtInvitation, hentIndloestInvitation,
+    inviterPartner, traekPartnerInvitation, hentPartner, fjernPartner, hentSendtInvitation,
+    hentSidsteInvitation, hentIndloestInvitation, hentModtagetInvitation, svarPartnerInvitation,
     hentPartnerNavn,
     gemPushAbonnement, fjernPushAbonnement,
     inviterGaest, hentGaest,
