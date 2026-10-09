@@ -4572,8 +4572,16 @@ function pakkeSektioner(){
      står den først i listen og med sin egen tekst. */
   if((f.bilHuske||[]).includes('strøm') && f.bilType !== 'andet') tilBilen.unshift({ id:'s-strøm', tekst:'Lad bilen op' });
 
-  const personligt = [...PAKKE_PUNKTER, ...egne('pakke')].map(p=>({ id:'p-'+p.id, tekst:p.tekst }));
-  const hund = hundMed() ? [...HUND_PUNKTER, ...egne('hund')].map(p=>({ id:'p-'+p.id, tekst:p.tekst })) : [];
+  /* KUN DET, DER ER VALGT (KN 9/10). Personligt og Hund tog før ALLE de
+     færdige punkter plus alle egne — også dem, man ikke havde sat kryds ved
+     på "Personligt"-skærmen. Så fik pakkelisten, og dermed det, man deler
+     med rejsemakkeren og gæsten, hele standardlisten i stedet for turens
+     egen. Bilen og hyggen har altid fulgt valget (bilHuske); nu gør disse to
+     det også. Valget ligger i pakkeTjek; at skrive et eget punkt ER at vælge
+     det (egenValgliste). */
+  const valgt = new Set(f.pakkeTjek || []);
+  const personligt = [...PAKKE_PUNKTER, ...egne('pakke')].filter(p=>valgt.has(p.id)).map(p=>({ id:'p-'+p.id, tekst:p.tekst }));
+  const hund = hundMed() ? [...HUND_PUNKTER, ...egne('hund')].filter(p=>valgt.has(p.id)).map(p=>({ id:'p-'+p.id, tekst:p.tekst })) : [];
   const hygge = huske.filter(h=>h.gruppe==='hygge').map(bilRk);
 
   const madudstyr = [
