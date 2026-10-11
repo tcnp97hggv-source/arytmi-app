@@ -745,16 +745,18 @@
 
   /* SLET KONTOEN. Den eneste uigenkaldelige handling i appen.
 
-     Kodeordet sendes med, fordi funktionen kræver det: et gyldigt login
-     beviser, at telefonen er låst op — ikke at det er ejeren, der sidder
-     med den. Se noten i `supabase/functions/slet-konto/index.ts`.
+     Beviset er koden fra mailen (1.11, 11/10): et gyldigt login beviser,
+     at telefonen er låst op — ikke at det er ejeren, der sidder med den.
+     Koden bestilles med bedOmKode() på hendes egen adresse. Se noten i
+     `supabase/functions/slet-konto/index.ts`.
 
      ⚠️ DER RYDDES IKKE OP LOKALT HERFRA. Sessionen og `localStorage` hører
      til app.js, og oprydningen dér blev skrevet 15/9, efter at logud lod
      den ene kundes ture ligge og blive stemplet med den næstes ejer-id.
      Den kode skal kaldes ét sted fra, ikke kopieres herind. */
-  async function sletKonto(kodeord) {
-    if (!kodeord) return { ok: false, fejl: 'Skriv dit kodeord for at bekræfte.' };
+  async function sletKonto(raaKode) {
+    const kode = rensKode(raaKode);
+    if (!kode) return { ok: false, fejl: 'Koden er seks cifre. Du finder den i mailen fra os.' };
 
     const k = faaKlient();
     if (!k) return { ok: false, fejl: 'Ingen forbindelse til Arytmi lige nu.' };
@@ -774,7 +776,7 @@
           apikey: PROJEKT.anon,
           Authorization: 'Bearer ' + adgangstoken
         },
-        body: JSON.stringify({ kodeord: kodeord })
+        body: JSON.stringify({ kode })
       });
       const svar = await r.json().catch(() => ({}));
       if (!r.ok) return { ok: false, fejl: svar.error || 'Kontoen kunne ikke slettes.' };

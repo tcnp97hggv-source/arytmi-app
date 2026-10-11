@@ -3276,37 +3276,63 @@ function skærmSletKonto(){
     </div>
 
     <div class="kort" style="margin-top:14px">
-      <label class="felt-etiket" for="sletKodeord">${t('slet.kodeordetiket','Skriv dit kodeord for at bekræfte')}</label>
-      <input type="password" id="sletKodeord" autocomplete="current-password"
-             placeholder="${esc(t('slet.kodeordplads','Dit kodeord'))}">
-      <p class="dæmpet" style="font-size:13px;margin-top:6px">${t('slet.kodeordhvorfor','Vi spørger, fordi en oplåst telefon ikke er det samme som dig.')}</p>
+      ${sletKodeSendt() ? `
+      <label class="felt-etiket" for="sletKode">${t('slet.kodeetiket','Skriv koden fra mailen for at bekræfte')}</label>
+      <input type="text" id="sletKode" inputmode="numeric" autocomplete="one-time-code" maxlength="7"
+             placeholder="123 456" style="font-size:22px;letter-spacing:.3em;text-align:center">
+      <p class="dæmpet" style="font-size:13px;margin-top:6px">${t('slet.kodesendt','Vi har sendt en kode til {mail}. Den gælder i 15 minutter.',{mail:esc(sletKodeMail)})}</p>
+      <div class="login-link"><button class="tekst-knap" onclick="sletSendKode(true)">${t('kode.nykode','Send en ny kode')}</button></div>
       <div id="sletFejl" class="advarsel" style="margin-top:12px;display:none"></div>
-      <button class="knap bred slet-knap" id="sletKnap" onclick="sletKontoBekræft()" style="margin-top:14px">${t('slet.knap','Slet min konto for altid')}</button>
+      <button class="knap bred slet-knap" id="sletKnap" onclick="sletKontoBekræft()" style="margin-top:14px">${t('slet.knap','Slet min konto for altid')}</button>` : `
+      <p>${t('slet.kodeforklaring','For at bekræfte sender vi en kode til {mail}.',{mail:esc((s.profil && s.profil.email) || '')})}</p>
+      <p class="dæmpet" style="font-size:13px;margin-top:6px">${t('slet.kodehvorfor','Vi spørger, fordi en oplåst telefon ikke er det samme som dig.')}</p>
+      <div id="sletFejl" class="advarsel" style="margin-top:12px;display:none"></div>
+      <button class="knap bred slet-knap" id="sletSendKnap" onclick="sletSendKode(false)" style="margin-top:14px">${t('slet.sendkode','Send mig en kode')}</button>`}
       <button class="knap kontur bred" onclick="tilbage('profil')" style="margin-top:10px">${t('faelles.fortryd','Fortryd')}</button>
     </div>
   </div>`;
 }
 
-/* To spørgsmål, ikke ét. Kodeordet er beviset; bekræftelsen er tænkepausen. */
+/* Koden på mail er beviset (1.11, 11/10) — efter 1.9 har ikke alle et
+   kodeord. Samme kode og samme lofter som login. Koden gælder 15 minutter;
+   er den ældre, viser skærmen knappen igen i stedet for et dødt felt. */
+let sletKodeMail = '', sletKodeTid = 0;
+const sletKodeSendt = () => !!sletKodeMail && Date.now() - sletKodeTid < 15*60e3;
+
+async function sletSendKode(igen){
+  const knap = $('sletSendKnap'), fejl = $('sletFejl');
+  if(knap){ knap.disabled = true; knap.textContent = t('kode.sender','Sender…'); }
+  const svar = await ArytmiAuth.bedOmKode((s.profil && s.profil.email) || '');
+  if(!svar.ok){
+    if(knap){ knap.disabled = false; knap.textContent = t('slet.sendkode','Send mig en kode'); }
+    if(fejl){ fejl.style.display='block'; fejl.textContent = svar.fejl; }
+    return;
+  }
+  sletKodeMail = svar.email; sletKodeTid = Date.now();
+  if(igen){ flash(t('kode.nysendt','Vi har sendt en ny kode. Kun den nyeste virker.'), 'tjek'); return; }
+  tegn();
+}
+
+/* To spørgsmål, ikke ét. Koden er beviset; bekræftelsen er tænkepausen. */
 function sletKontoBekræft(){
-  const felt = $('sletKodeord');
-  const kodeord = felt ? felt.value : '';
+  const felt = $('sletKode');
+  const kode = felt ? felt.value : '';
   const fejl = $('sletFejl');
-  if(!kodeord){
-    if(fejl){ fejl.style.display='block'; fejl.textContent = t('slet.manglerkode','Skriv dit kodeord for at bekræfte.'); }
+  if(!ArytmiAuth.rensKode(kode)){
+    if(fejl){ fejl.style.display='block'; fejl.textContent = t('slet.manglerkode','Skriv de seks cifre fra mailen for at bekræfte.'); }
     if(felt) felt.focus();
     return;
   }
   bekræft(t('slet.sidstespm','Er du sikker? Din konto og alt, du har lavet, bliver slettet nu. Det kan ikke fortrydes.'),
-    ()=>sletKontoUdfør(kodeord));
+    ()=>sletKontoUdfør(kode));
 }
 
-async function sletKontoUdfør(kodeord){
+async function sletKontoUdfør(kode){
   const knap = $('sletKnap'), fejl = $('sletFejl');
   const vis = besked => { if(fejl){ fejl.style.display='block'; fejl.textContent = besked; } };
   if(knap){ knap.disabled = true; knap.textContent = t('slet.sletter','Sletter …'); }
 
-  const svar = await ArytmiAuth.sletKonto(kodeord);
+  const svar = await ArytmiAuth.sletKonto(kode);
 
   if(!svar.ok){
     if(knap){ knap.disabled = false; knap.textContent = t('slet.knap','Slet min konto for altid'); }
