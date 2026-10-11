@@ -28,16 +28,17 @@
    værd end en fejl, vi kan læse om bagefter.
 
 
-   DSN'EN ER TOM, OG DET ER IKKE EN FORGLEMMELSE
-   ---------------------------------------------
+   DSN'EN — SAT 11/10
+   ------------------
    `SENTRY_DSN` i Supabases secrets hører til SERVEREN. En browser-DSN er en
    anden nøgle i samme projekt, og den er offentlig af natur — den står i
    kildekoden på enhver hjemmeside, der bruger Sentry, og den kan kun sende
    fejl ind, ikke læse noget ud.
 
-   Men den er stadig Kennets at hente. Indtil den står her, melder filen
-   ingenting og skriver kun i konsollen. **Alt andet i filen virker uden
-   den.**
+   Kennet hentede den 11/10. Er linjen tom, melder filen ingenting og
+   skriver kun i konsollen. **Alt andet i filen virker uden den.** Appens
+   CSP (index.html) skal tillade præcis den ingest-adresse, ellers bliver
+   meldingen blokeret lydløst.
 
        Hentes i Sentry under Projekt → Settings → Client Keys (DSN).
        Det er den, der ser ud som https://<noget>@<noget>.ingest.../<tal>
@@ -87,7 +88,7 @@
      ⚠️ DET ER DEN HER LINJE. Sæt DSN'en mellem anførselstegnene, og
      meldingerne begynder at komme frem. Intet andet skal røres.
      Hentes i Sentry under Projekt → Settings → Client Keys (DSN). */
-  const DSN = '';                   // se noten i toppen
+  const DSN = 'https://c710ed7be17324adcfa36753a48c7d66@o4512067730407424.ingest.de.sentry.io/4512067746136144';  // sat 11/10
   const MILJOE = 'app';
 
   /* ---------- lofter ---------- */
@@ -111,9 +112,12 @@
        2. DEN DAG, DSN'EN SKAL VÆRE FORSKELLIG i appen og på en prøveflade.
           Så er der et sted at gøre det.
 
-     Rækkefølgen er med vilje: linjen i filen vinder. Kennet skal kunne
-     sætte én streng ét sted og være færdig. */
-  function denAktiveDSN() { return DSN || opsætning.dsn || ''; }
+     Rækkefølgen: en DSN givet til `start()` vinder, ellers linjen i filen.
+     Indtil 11/10 var det omvendt, og det gik godt, så længe linjen var tom.
+     Da den rigtige DSN kom ind, sendte prøverne deres falske fejl til det
+     ægte Sentry og ventede forgæves på dem lokalt. Appen giver ingen DSN
+     med til `start()`, så for appen er linjen i filen stadig den eneste. */
+  function denAktiveDSN() { return opsætning.dsn || DSN || ''; }
 
   /* Hverdag. Listen er kort med vilje: står noget her, hører vi det ALDRIG
      igen, og det er en dyrere beslutning end den ser ud. */

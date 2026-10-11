@@ -9,6 +9,8 @@
      fanger ikke selve indsprøjtningen (se 'unsafe-inline' nedenfor), men
      den lukker UDGANGEN: connect-src tillader kun vores egen Supabase og
      adresseregistret, så der ikke er nogen at sende det til.
+     Sentry (11/10) står med den præcise adresse til vores eget projekt —
+     dét, der sendes dertil, kan kun vi læse.
 
      LINJE FOR LINJE, så ingen kommer til at løsne noget ved et uheld:
 
@@ -68,11 +70,14 @@
   font-src 'self';
   manifest-src 'self';
   worker-src 'self';
-  connect-src https://vxleyvtumbwtkejoiaev.supabase.co wss://vxleyvtumbwtkejoiaev.supabase.co https://adressevaelger.dk https://arytmi.com;
+  connect-src https://vxleyvtumbwtkejoiaev.supabase.co wss://vxleyvtumbwtkejoiaev.supabase.co https://adressevaelger.dk https://arytmi.com https://o4512067730407424.ingest.de.sentry.io;
   base-uri 'none';
   form-action 'none';
   object-src 'none'">
 <title>ARYTMI — vælg mindre, oplev mere</title>
+<!-- Appen skal ikke findes på Google (klar-til-live 2.11, 11/10): kunden
+     kommer ind via købet, og en login-skærm er intet søgeresultat. -->
+<meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#4a2417">
 <link rel="icon" type="image/png" sizes="32x32" href="brand/arytmi_logo_2026/favicon/arytmi_A_32.png">
 <link rel="icon" type="image/png" sizes="256x256" href="brand/arytmi_logo_2026/favicon/arytmi_A_256.png">
@@ -94,7 +99,7 @@
 <link rel="preload" href="fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
 <!-- ?v= skal bumpes ved hver ændring i app.css/app.js. Uden den viser browseren
      (og GitHub Pages) den gamle fil — se Arytmi-status.md om cache-fælden. -->
-<link rel="stylesheet" href="app.css?v=20261008a">
+<link rel="stylesheet" href="app.css?v=20261011e">
 </head>
 <body>
 <div class="telefon">
@@ -128,7 +133,7 @@
 <!-- Nettet under appen. FOERST af alle vores egne filer, og med vilje: den
      skal staa, foer der er noget, der kan naa at gaa i stykker. Den roerer
      ikke DOM'en og goer ingenting, foer app.js starter den. -->
-<script src="fejl.js?v=20260924a"></script>
+<script src="fejl.js?v=20261011a"></script>
 <script src="model.js?v=20261005a"></script>
 <!-- Omregningen fra adresseregistrets koordinater til kortets. SKAL ligge
      foer app.js, som henter ArytmiGeo fra window naar en adresse vaelges.
@@ -139,7 +144,7 @@
 <script src="byer.js?v=20260924a"></script>
 <script src="vaerktoejskasse/core.js?v=20260924a"></script>
 <script src="vaerktoejskasse/adapters.js?v=20261006a"></script>
-<script src="auth.js?v=20261007b"></script>
+<script src="auth.js?v=20261011b"></script>
 <!-- Udbakken. Efter auth.js, foer app.js: den henter sin klient fra
      ArytmiAuth. Uden en klient goer den ingenting, og appen koerer videre. -->
 <script src="sync.js?v=20261005c"></script>
@@ -149,6 +154,6 @@
 <script src="tekstdata.js?v=20261005a"></script>
 <script src="redaktoer.js?v=20261005b"></script>
 <script src="redaktoer-plader.js?v=20261005b"></script>
-<script src="app.js?v=20261009a"></script>
+<script src="app.js?v=20261011i"></script>
 </body>
 </html>

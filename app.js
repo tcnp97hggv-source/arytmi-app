@@ -2590,7 +2590,7 @@ function tegnNav(){
      plads til. Uden den blev .hero.fuld ved med at trække 92 px fra på login-
      og onboardingskærmene og efterlod en tom creme stribe i bunden. */
   const telefon = document.querySelector('.telefon');
-  if(!s.onboarded || loginKræves){ $('bundnav').style.display='none'; telefon.classList.add('uden-bundnav'); return; }
+  if(!s.onboarded || loginKræves || adgangLukket){ $('bundnav').style.display='none'; telefon.classList.add('uden-bundnav'); return; }
   telefon.classList.remove('uden-bundnav');
   $('bundnav').style.display='flex';
   /* Fanen "Steder" står kun der, mens editoren er slået til (KN 5/10). */
@@ -2618,6 +2618,43 @@ let obTrin = 1;
    liggende og sendes op bagefter (sync.js: en tur, serveren aldrig har
    set, er hendes egen og skal OP). Sættes af tjekLogin() og vedUdlogning. */
 let loginKræves = false;
+/* ADGANGEN ER LUKKET (klar-til-live 1.6, B2, KN 11/10: "lukket helt").
+   Udløbet eller betalt tilbage: hun er logget ind, men ser kun skærmen
+   "Din adgang er udløbet". Databasen lukker selv for turene (0053) — det
+   her er, at appen SIGER det i stedet for at vise tomme skærme.
+   Huskes på telefonen, så en lukket konto ikke åbner sig, fordi telefonen
+   er offline. Kun et klart nej fra serveren lukker; et "ved ikke" ændrer
+   intet (se harAdgang i auth.js). */
+/* Én adresse, ét sted (1.7 og 1.6). En adresse er ikke en tekst, der skal
+   rettes i editoren — derfor en konstant og ikke en nøgle. */
+const KUNDESERVICE = 'kundeservice@arytmi.com';
+const LUKKET_NØGLE = 'arytmi-adgang-lukket';
+let adgangLukket = (() => { try { return localStorage.getItem(LUKKET_NØGLE) === '1'; } catch(e){ return false; } })();
+function sætAdgangLukket(lukket){
+  if(lukket === adgangLukket) return;
+  adgangLukket = lukket;
+  try { lukket ? localStorage.setItem(LUKKET_NØGLE, '1') : localStorage.removeItem(LUKKET_NØGLE); } catch(e){}
+  if(lukket) nulstilHistorik();
+  tegn();
+}
+async function tjekAdgang(lige_logget_ind){
+  if((!s.onboarded && !lige_logget_ind) || loginKræves || typeof ArytmiAuth === 'undefined' || !ArytmiAuth.harAdgang) return null;
+  const svar = await ArytmiAuth.harAdgang();
+  if(svar === true)  sætAdgangLukket(false);
+  if(svar === false) sætAdgangLukket(true);
+  return svar;
+}
+function skærmLukket(){
+  $('indhold').innerHTML = obRamme('',
+    t('lukket.overskrift','Din adgang er udløbet'),
+    '',
+    `<p class="lukket-tekst">${t('lukket.tekst','Dine ture og minder er gemt. Når adgangen er fornyet, ligger det hele, som du forlod det.')}</p>
+     <a class="knap primær bred" href="mailto:${KUNDESERVICE}">${ik('mail')} ${t('lukket.kontakt','Skriv til os')}</a>
+     <p class="lukket-mail">${KUNDESERVICE}</p>`,
+    `<div class="login-foerste">
+       <button class="knap kontur bred" onclick="logUdAfArytmi()">${t('indstil.logud','Log ud')}</button>
+     </div>`);
+}
 /* Dato som tre valg (dag/måned/år) i stedet for et nativt dato-felt — genbrugt
    af fødselsdag (onboarding), afgangsdato og "vælg dato" ved hjemkomst.
    Et kalenderhjul er dårligt til fødselsdage (30-40 klik tilbage i tiden) og
@@ -2673,7 +2710,7 @@ function obRamme(etiket, overskrift, under, krop, efter){
       ${heroScene('klar', 420)}
       <div class="ned-lag">
         <div class="h-logo">${logoSVG(true)}</div>
-        <div class="login-maerkat">${etiket}</div>
+        ${etiket?`<div class="login-maerkat">${etiket}</div>`:''}
         <h1 class="login-titel">${overskrift}</h1>
         ${under?`<p class="login-under">${under}</p>`:''}
       </div>
@@ -2709,7 +2746,7 @@ function skærmOnboarding(){
             <!-- ÉN knap (KN 4/10 2026). Her stod før "Opret en konto", der
                  førte UD til arytmi.com. Login-skærmen har nu selv "Første
                  gang? Opret dig" med en kode på mail (K21), så der er kun én
-                 vej ind — og ingen vej ud af appen til et køb (Apple 3.1.1). -->
+                 vej ind. Vejen til købet står nederst på login-skærmen (1.8). -->
           </div>
         </div>
       </div>
@@ -2721,15 +2758,16 @@ function skærmOnboarding(){
      betalte. Skærmen skal derfor ikke ligne en tilmelding, den skal ligne
      en dør.
 
-     Den, der IKKE har købt, står ikke længere og leder — hun blev fanget
-     ét trin før, af "Opret en konto" på forsiden, som fører ud til
-     arytmi.com. Rettet 8/9 2026: før stod der ingen vej for hende overhovedet,
-     og en app, der kun er en login-mur, bliver også afvist ved gennemsyn. */
+     Den, der IKKE har købt, finder vejen nederst: "Har du ikke en Arytmi
+     endnu?" fører til afsted.arytmi.com (1.8, KN 11/10). */
   if(obTrin===2){
+    /* Intet mærkat og ingen undertekst om "Velkommen til Arytmi" (KN 11/10):
+       knappen siger "Log ind", og "Første gang?" nedenfor siger, hvilken
+       mail. De andre trin beholder deres. */
     $('indhold').innerHTML = obRamme(
-      t('login.etiket','Log ind'),
+      '',
       t('login.overskrift','Velkommen til Arytmi'),
-      t('login.under','Brug den mailadresse, du købte Arytmi med.'),
+      '',   // ingen undertekst (KN 11/10): "Første gang?" nedenfor siger det samme
       `${loginKræves?`<div class="advarsel" style="margin-top:12px">${t('login.igen','Du er blevet logget ud. Log ind igen — dine ture på telefonen kommer med.')}</div>`:''}
         <label class="felt-etiket">${t('login.mail','Mailadresse')}</label>
         <input type="email" id="obEmail" inputmode="email" autocomplete="username"
@@ -2742,12 +2780,19 @@ function skærmOnboarding(){
              arytmi.com/nulstil og "Første gang" på linket i
              ordrebekræftelsen. Det er samme bevis begge steder: hun ejer
              postkassen. Kun overskrifterne er forskellige. -->
-        <div class="login-link"><button class="tekst-knap" onclick="obKodeStart('glemt')">${t('login.glemt','Glemt dit kodeord?')}</button></div>`,
+        <div class="login-link"><button class="tekst-knap" onclick="obKodeStart('glemt')">${t('login.glemt','Glemt dit kodeord?')}</button></div>
+        <!-- 1.9 (B6, KN 11/10): ind uden kodeord, med en kode på mail. -->
+        <div class="login-link"><button class="tekst-knap" onclick="obKodeStart('login')">${t('login.medkode','Log ind med en kode på mail')}</button></div>`,
       /* "Første gang?" står UDEN for kortet: kortet er døren for den, der
          har en nøgle; det her er vejen for den, der ikke har fået den endnu. */
       `<div class="login-foerste">
         <p>${t('login.foerste','<b>Første gang?</b> Din konto blev oprettet, da du købte Arytmi. Opret dig med den mail, du købte med.')}</p>
         <button class="knap kontur bred" onclick="obKodeStart('opret')">${t('login.opret','Opret dig')}</button>
+        <!-- Vejen til købet (klar-til-live 1.8, B7, KN 11/10). Den forsvandt
+             4/10 af hensyn til Apple 3.1.1 — den grund faldt med PWA'en (K22).
+             Lille og dæmpet: den, der står her, har næsten altid købt. -->
+        <p class="login-koeb">${t('login.ikkekoebt','Har du ikke en Arytmi endnu?')}
+          <a href="https://afsted.arytmi.com" target="_blank" rel="noopener">${t('login.laesmere','Læs mere')}</a></p>
       </div>`);
     return;
   }
@@ -2785,12 +2830,14 @@ function skærmOnboarding(){
      ikke nok. `obKodeFormaal` er 'opret' eller 'glemt' og styrer kun
      overskrifterne — serveren (`mailkode`) gør det samme i begge tilfælde. */
   if(obTrin===2.6 || obTrin===2.7){
-    const opret = obKodeFormaal !== 'glemt';
-    const etiket = opret ? t('kode.opretetiket','Første gang') : t('kode.glemtetiket','Glemt kodeord');
+    const login = obKodeFormaal === 'login';   // 1.9: kun koden, intet kodeord
+    const opret = obKodeFormaal === 'opret';
+    const etiket = login ? '' : opret ? t('kode.opretetiket','Første gang') : t('kode.glemtetiket','Glemt kodeord');
     const tilbageLink = `<div class="login-link"><button class="tekst-knap" onclick="${obTrin===2.7?'obTrin=2.6':'obTrin=2'};tegn()">${t('kode.tilbage','Tilbage')}</button></div>`;
     if(obTrin===2.6){
       $('indhold').innerHTML = obRamme(etiket,
-        opret ? t('kode.opretoverskrift','Opret dig') : t('kode.glemtoverskrift','Nyt kodeord'),
+        login ? t('kode.loginoverskrift','Log ind med en kode')
+          : opret ? t('kode.opretoverskrift','Opret dig') : t('kode.glemtoverskrift','Nyt kodeord'),
         t('kode.mailunder','Skriv den mailadresse, du købte Arytmi med. Så sender vi dig en kode.'),
         `<label class="felt-etiket">${t('login.mail','Mailadresse')}</label>
         <input type="email" id="obKodeMail" inputmode="email" autocomplete="username"
@@ -2808,10 +2855,11 @@ function skærmOnboarding(){
       `<label class="felt-etiket">${t('kode.kode','Kode')}</label>
         <input type="text" id="obKode" inputmode="numeric" autocomplete="one-time-code" maxlength="7"
                placeholder="123 456" style="font-size:22px;letter-spacing:.3em;text-align:center">
+        ${login ? `<div style="margin-top:20px"><button class="knap primær bred" id="obKodeKnap" onclick="obLogIndMedKode()">${t('login.knap','Log ind')}</button></div>` : `
         <label class="felt-etiket">${opret ? t('vaelgkode.overskrift','Vælg dit kodeord') : t('kode.nytkodeord','Vælg et nyt kodeord')}</label>
         <input type="password" id="akKodeord" autocomplete="new-password" placeholder="••••••••••••" oninput="akTælTegn()">
         <div id="akMaal" class="dæmpet" style="font-size:13px;margin-top:6px">${t('vaelgkode.maal','Mindst {antal} tegn.',{antal:ArytmiAuth.MIN_KODEORD})}</div>
-        <div style="margin-top:20px"><button class="knap primær bred" id="obKodeKnap" onclick="obGemMedKode()">${opret ? t('kode.opretknap','Opret mig og log ind') : t('kode.glemtknap','Gem og log ind')}</button></div>
+        <div style="margin-top:20px"><button class="knap primær bred" id="obKodeKnap" onclick="obGemMedKode()">${opret ? t('kode.opretknap','Opret mig og log ind') : t('kode.glemtknap','Gem og log ind')}</button></div>`}
         <div class="login-link"><button class="tekst-knap" onclick="obSendKode(true)">${t('kode.nykode','Send en ny kode')}</button></div>
         ${tilbageLink}`);
     setTimeout(()=>{ const f=$('obKode'); if(f) f.focus(); }, 60);
@@ -2940,7 +2988,8 @@ let obKodeFormaal = 'opret';   // 'opret' eller 'glemt' — kun overskrifterne s
 let obKodeMail = '';
 
 function obKodeStart(formaal){
-  obKodeFormaal = formaal === 'glemt' ? 'glemt' : 'opret';
+  /* 'login' (1.9, 11/10): ind med koden alene, uden kodeord. */
+  obKodeFormaal = (formaal === 'glemt' || formaal === 'login') ? formaal : 'opret';
   const skrevet = $('obEmail') ? ($('obEmail').value||'').trim() : '';
   if(skrevet) obKodeMail = skrevet;
   obTrin = 2.6; tegn();
@@ -2987,10 +3036,32 @@ async function obGemMedKode(){
   await efterLogin();
 }
 
+/* Log ind med koden alene (klar-til-live 1.9, B6, KN 11/10). Ingen
+   kodeord: postkassen er beviset, og sessionen udstedes i appen. */
+async function obLogIndMedKode(){
+  const kode = $('obKode').value||'';
+  const knap = $('obKodeKnap');
+  const før = knap ? knap.textContent : '';
+  if(knap){ knap.disabled = true; knap.textContent = t('kode.gemmer','Et øjeblik…'); }
+  const svar = await ArytmiAuth.logIndMedKode(obKodeMail, kode);
+  if(!svar.ok){
+    if(knap){ knap.disabled = false; knap.textContent = før; }
+    flash(svar.fejl);
+    return;
+  }
+  s.profil.email = ArytmiAuth.normaliserEmail(obKodeMail) || '';
+  gem();
+  obKodeMail = '';
+  await efterLogin();
+}
+
 /* Fælles for begge veje ind: hent profilen ned, og gå videre i onboardingen
    eller direkte hjem, hvis hun har været her før. */
 async function efterLogin(){
   loginKræves = false;
+  /* Adgangen FØR hentningen (1.6): er den lukket, er der intet at hente, og
+     skærmen skal sige det med det samme. Et "ved ikke" går videre som før. */
+  if(await tjekAdgang(true) === false){ s.onboarded = true; gem(); tegn(); return; }
   /* ⚠️ UDBAKKEN SKAL I GANG HER (4/10). Ved opstart var hun ikke logget
      ind, så sync.js' første hentning gav op — og udbakken samler INTET op,
      før en hentning er lykkedes (se `klar` i efterGem). Uden denne linje
@@ -3102,6 +3173,7 @@ async function logUdAfArytmi(){
     if(window.ArytmiSync && ArytmiSync.glem) ArytmiSync.glem();
     try { localStorage.removeItem(GEM); } catch(e){}
     try { localStorage.removeItem('klar-app-v2'); } catch(e){}
+    try { localStorage.removeItem(LUKKET_NØGLE); } catch(e){}
     location.reload();
   };
 
@@ -5545,7 +5617,7 @@ function venFjern(){
    DESTINATIONEN TIL BILEN (KN 6/9)
    Samme handling to steder: "Del med bil" på Hjem og "Send destination til
    køretøj" i loggen. Én funktion, så de aldrig kan komme til at gøre noget
-   forskelligt. Prototype: bilen findes ikke, så vi kvitterer i stedet. */
+   forskelligt. Siden 11/10 telefonens del-ark — se sendTilKøretøj(). */
 function turAdresse(a){
   const f = a || s.forberedelse;
   const d = f && f.destination;
@@ -5559,19 +5631,56 @@ function turKoordinat(a){
   const f = a || s.forberedelse;
   const d = f && f.destination;
   if(!d) return null;
-  const t = d.testetId ? TESTEDE.find(x=>x.id===d.testetId) : null;
-  if(t && t.lat!=null) return t.lat.toFixed(5) + ', ' + t.lon.toFixed(5);
-  if(d.x!=null && d.y!=null){
-    const g = xyTilGeo(d.x, d.y);
-    return g.lat.toFixed(5) + ', ' + g.lon.toFixed(5);
-  }
-  return null;
+  /* destGeo (11/10): før sprang denne de rigtige lat/lon på en egen
+     destination over og regnede tilbage fra kortets omtrentlige x/y. */
+  const g = destGeo(d);
+  if(!Number.isFinite(g.lat) || !Number.isFinite(g.lon)) return null;
+  return g.lat.toFixed(5) + ', ' + g.lon.toFixed(5);
 }
-function sendTilKøretøj(id){
+/* ÆGTE NU (klar-til-live 1.4, KN 11/10). Før stod der "er sendt til bilen",
+   og intet blev sendt. Nu åbner telefonens del-ark med stedet, adressen,
+   koordinaterne og et kortlink — så vælger hun selv Tesla-appen (eller en
+   anden bilapp, eller en besked til den, der kører). Vi sender intet nogen
+   steder hen; det gør hun.
+
+   Kortlinket er med, fordi bilapps læser et kortlink sikrere end fri tekst.
+   iPhone får Apple Maps, resten Google Maps (et `geo:` kan ikke deles som
+   link). Har browseren intet del-ark (en computer), kopieres teksten. */
+async function sendTilKøretøj(id){
   const a = id ? s.arytmer.find(x=>x.id===id) : s.forberedelse;
-  const adr = turAdresse(a);
-  if(!adr){ flash(t('turen.vaelgdestfoerst','Vælg en destination først.'), 'nål'); return; }
-  infoModal(t('turen.sendttilbil','<b>{adresse}</b> er sendt til bilen. Adressen ligger klar i navigationen, når I sætter jer ind.',{adresse:adr}), t('faelles.godt','Godt'));
+  const dest = a && a.destination;
+  if(!dest){ flash(t('turen.vaelgdestfoerst','Vælg en destination først.'), 'nål'); return; }
+  const g = destGeo(dest);
+  const lat = g.lat.toFixed(5), lon = g.lon.toFixed(5);
+  const testet = dest.testetId && TESTEDE.find(x => x.id === dest.testetId);
+  const adr = (testet && testet.adresse) || dest.adresse || '';
+  const url = kortLink(lat, lon, dest.navn, 'del');
+  const tekst = [dest.navn, adr, lat + ', ' + lon].filter(Boolean).join('\n');
+  if(navigator.share){
+    try { await navigator.share({ title: dest.navn || 'Arytmi', text: tekst, url: url }); }
+    catch(e){ /* hun lukkede del-arket — det er ikke en fejl */ }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(tekst + '\n' + url);
+    flash(t('turen.bilkopieret','Stedet er kopieret. Sæt det ind i bilens app.'), 'del');
+  } catch(e){
+    flash(adr || (lat + ', ' + lon), 'nål');
+  }
+}
+
+/* Link til telefonens kort (1.5, 11/10). iPhone forstår ikke `geo:` —
+   den får Apple Maps, som åbner i Kort-appen. Android beholder `geo:`, så
+   telefonen selv vælger kortprogram. Skal linket DELES ('del'), kan `geo:`
+   ikke bruges, og Android får Google Maps. Sat sammen med + af samme grund
+   som i kørDerhen(): tekstdækningsmåleren skal ikke læse en adresse som tekst. */
+function kortLink(lat, lon, navn, brug){
+  const mærke = encodeURIComponent(navn || 'Arytmi');
+  if(telefonSlags() === 'ios')
+    return 'https://maps.apple.com/?ll=' + lat + ',' + lon + '&q=' + mærke;
+  if(brug === 'del')
+    return 'https://www.google.com/maps/search/?api=1&query=' + lat + '%2C' + lon;
+  return 'geo:' + lat + ',' + lon + '?q=' + lat + ',' + lon + '(' + mærke + ')';
 }
 
 /* Samlet, rolig oversigt over turen: hvornår, hvorhen, med hvem, hjem igen.
@@ -5674,7 +5783,26 @@ function skærmTurplan(){
           "gåTil('ven-inviter')") : ''}
     </div>
     ${kørDerhen(dest)}
+    ${dest ? sikkerNat() : ''}
     ${planBSteder()}
+  </div>`;
+}
+
+/* GODT AT VIDE OM NATTEN (klar-til-live 1.10, B8, KN 11/10). Kort og
+   roligt — tre ting, der kan gå galt, og som ingen andre siger til hende:
+   kulilte, et glas for meget og bilen, og at "testet af os" ikke er en
+   tilladelse. Samme indhold står som ansvarsafsnit i handelsbetingelserne.
+   ⚠️ UDKAST skrevet af Claude 11/10 — K + O godkender ordlyden. Teksterne
+   er nøgler, så de rettes i editoren uden en udgivelse. */
+function sikkerNat(){
+  const punkt = tekst => `<li>${tekst}</li>`;
+  return `<div class="kør-derhen sikker-nat">
+    <div class="kd-titel">${t('sikker.titel','Godt at vide om natten')}</div>
+    <ul>
+      ${punkt(t('sikker.kulilte','Sluk motoren, når I holder for natten, og brug aldrig en varmer med flamme inde i bilen. Udstødning og flammer giver kulilte, som hverken kan ses eller lugtes. En elbil i campingtilstand er tryg.'))}
+      ${punkt(t('sikker.alkohol','Skal I have et glas vin, så tag det, når bilen holder for natten — og kør først videre, når I er helt klar igen.'))}
+      ${punkt(t('sikker.tilladelse','At vi har testet et sted, betyder ikke, at det er en tilladelse til at overnatte. Tjek skiltene, følg stedets regler, og vis hensyn til dem, der bor tæt på.'))}
+    </ul>
   </div>`;
 }
 
@@ -5704,16 +5832,13 @@ function kørDerhen(dest){
   if(!Number.isFinite(g.lat) || !Number.isFinite(g.lon)) return '';
 
   const lat = g.lat.toFixed(5), lon = g.lon.toFixed(5);
-  /* Navnet med i parentes, så kortprogrammet kan sætte en nål med et ord
-     på. Det skal URL-kodes: et stednavn med & eller # ville ellers skære
-     adressen over. */
-  const mærke = encodeURIComponent(dest.navn || 'Arytmi');
-  /* Sat sammen med + og ikke som template-streng, og det er ikke smag:
+  /* Linket bygges i kortLink() (1.5, 11/10): Apple Maps på iPhone, `geo:`
+     ellers. Navnet med, URL-kodet, så kortet kan sætte en nål med et ord på.
+     Sat sammen med + og ikke som template-streng, og det er ikke smag:
      tekstdækningsmåleren læser ALLE template-strenge i app.js som mulige
      brugertekster, og `geo:,?q=,()` slap igennem dens prosa-prøve som en
-     manglende oversættelse. Den havde ret i, at den ikke kunne vide bedre —
-     en adresse er ikke noget, nogen skal kunne rette i bagrummet. */
-  const geo = 'geo:' + lat + ',' + lon + '?q=' + lat + ',' + lon + '(' + mærke + ')';
+     manglende oversættelse. */
+  const geo = kortLink(lat, lon, dest.navn);
   /* Adressen over tallene (KN 5/10: "Jeg vil gerne have adressen tilføjet
      her også"). En egen destination har den adresse, hun valgte; vores egne
      steder har den, I har skrevet i editoren eller bagrummet (0047). */
@@ -9877,6 +10002,17 @@ function skærmProfil(){
       ${editor}
       ${lys}
     </div>
+    <!-- Kontakt os (klar-til-live 1.7, KN 11/10). Indtil da var der ingen vej
+         fra appen til os — kun "skriv til os" uden en adresse. Et mailto-link,
+         så hun skriver fra sin egen mail, og vi kan svare på den. -->
+    <label class="felt-etiket liste-etiket">${t('indstil.hjaelp','Brug for hjælp?')}</label>
+    <div class="liste indstil-liste">
+      <a class="liste-punkt indstil-række link-række" href="mailto:${KUNDESERVICE}">
+        <span class="indstil-ikon">${ik('mail')}</span>
+        <div class="navn">${t('indstil.kontakt','Kontakt os')}<div class="indstil-under">${KUNDESERVICE}</div></div>
+        <span class="tjek-pil">${ik('pil')}</span>
+      </a>
+    </div>
     <!-- "Nulstil prototypen" og prototype-foden er fjernet 15/9 paa Kennets
          ord. De hoerte til en prototype, ikke til en app, der ligger i Play:
          den ene slettede alle brugerens data bag én bekraeftelse, den anden
@@ -10538,6 +10674,7 @@ function tegnSkærmen(){
   if(visInstallation()){ skærmInstallér(); tegnNav(); return; }
   if(!s.onboarded){ skærmOnboarding(); tegnNav(); return; }
   if(loginKræves){ if(obTrin !== 2 && obTrin !== 2.6 && obTrin !== 2.7) obTrin = 2; skærmOnboarding(); tegnNav(); return; }
+  if(adgangLukket){ skærmLukket(); tegnNav(); return; }   // 1.6: lukket helt
   // Passerede ture flytter selv ned i loggen (KN 4/9), FØR skærmen tegnes —
   // ellers ville forsiden nå at vise en tur, der ligger bag os, som "kommende".
   logAfholdteTure();
@@ -11187,4 +11324,5 @@ if(typeof ArytmiAuth !== 'undefined' && ArytmiAuth.vedUdlogning){
   ArytmiAuth.vedUdlogning(() => { if(s.onboarded && !loginKræves){ loginKræves = true; tegn(); } });
 }
 tjekLogin();
+tjekAdgang();
 redOpstart();

@@ -820,6 +820,9 @@
   /* ---------- lister & tjek ---------- */
   .liste-punkt{display:flex;align-items:center;gap:13px;padding:14px 0;border-bottom:1px solid var(--linje)}
   .liste-punkt:last-child{border-bottom:none}
+  /* En række, der er et link (Kontakt os, 11/10): ser ud som de andre rækker */
+  a.link-række{color:inherit;text-decoration:none;cursor:pointer}
+  a.link-række .navn{flex:1}
   .tjekboks{width:26px;height:26px;border-radius:50%;border:1.8px solid var(--p-sand-6);background:transparent;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s}
   .tjekboks svg{width:13px;height:13px;stroke:var(--p-lys-9);stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
   .tjekboks svg path{stroke-dasharray:24;stroke-dashoffset:24}
@@ -1151,6 +1154,9 @@
     font-variant-numeric:tabular-nums lining-nums;letter-spacing:.02em;
     color:var(--overskrift);user-select:all;-webkit-user-select:all}
   .kør-derhen .kd-note{margin-top:7px;font-size:12.5px;line-height:1.5;color:var(--fjord)}
+  /* Godt at vide om natten (1.10, 11/10): samme kort som "Sådan finder I derhen" */
+  .sikker-nat ul{margin:8px 0 2px;padding-left:18px}
+  .sikker-nat li{margin-top:7px;font-size:13.5px;line-height:1.5;color:var(--gran)}
   /* Adressen over tallene (KN 5/10, 0047) — det, man skriver i GPS'en. */
   .kør-derhen .kd-adresse{display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:15px;line-height:1.45;color:var(--gran)}
   .kør-derhen .kd-adresse .ik{width:17px;height:17px;flex-shrink:0;margin-top:2px;color:var(--rav)}
@@ -2673,6 +2679,8 @@
   .login-maerkat{margin-top:38px;font-family:var(--skrift-brød);font-size:11px;font-weight:700;
     letter-spacing:2.2px;text-transform:uppercase;color:var(--p-kobber-lys);
     text-shadow:0 1px 8px rgba(var(--p-sort-rgb),.25)}
+  /* Uden mærkat (login, 11/10): samme afstand fra logoet som med */
+  .h-logo + .login-titel{margin-top:58px}
   .login-titel{margin-top:10px;font-size:30px;line-height:1.15;color:var(--p-lys-7);
     text-shadow:0 1px 12px rgba(var(--p-sort-rgb),.25);text-wrap:balance}
   .login-under{margin:12px 0 0;max-width:300px;font-size:14.5px;line-height:1.5;text-wrap:balance;
@@ -2691,6 +2699,12 @@
   .login-foerste{margin:26px 4px 0;text-align:center}
   .login-foerste p{margin:0 auto 14px;max-width:300px;font-size:14px;line-height:1.55;color:var(--dæmpet)}
   .login-foerste p b{color:var(--gran)}
+  .login-foerste p.login-koeb{margin:18px auto 0;font-size:13px}
+  /* Adgangen er lukket (1.6, 11/10) */
+  .lukket-tekst{margin:4px 0 18px;font-size:15px;line-height:1.55;color:var(--gran);text-align:center}
+  .lukket-mail{margin:10px 0 0;font-size:13px;color:var(--dæmpet);text-align:center}
+  .login-kort a.knap{text-decoration:none}
+  .login-koeb a{color:var(--fjord);font-weight:500}
   /* Installationsguiden (K22, KN 6/10) — samme ramme som login (obRamme).
      Trinene som nummererede rækker; ikonet viser den knap, hun skal finde
      i SIN browser. */

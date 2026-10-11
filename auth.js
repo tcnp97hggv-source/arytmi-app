@@ -208,6 +208,33 @@
     }
   }
 
+  /* Log ind med koden alene (klar-til-live 1.9, Kennet 11/10). Serveren
+     tjekker koden og giver et engangsbevis; verifyOtp bytter det til en
+     session HER i appen — intet link, der kan åbne i Safari i stedet for
+     hjemmeskærms-appen. */
+  async function logIndMedKode(raaEmail, raaKode) {
+    const email = normaliserEmail(raaEmail);
+    if (!email) return { ok: false, fejl: 'Skriv din mailadresse.' };
+    const kode = rensKode(raaKode);
+    if (!kode) return { ok: false, fejl: 'Koden er seks cifre. Du finder den i mailen fra os.' };
+    const k = faaKlient();
+    if (!k) return { ok: false, fejl: 'Ingen forbindelse til Arytmi lige nu.' };
+    try {
+      const r = await fetch(PROJEKT.url + '/functions/v1/mailkode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: PROJEKT.anon },
+        body: JSON.stringify({ email, kode, login: true })
+      });
+      const svar = await r.json().catch(() => ({}));
+      if (!r.ok || !svar.token_hash) return { ok: false, fejl: svar.error || 'Det gik ikke. Prøv igen.' };
+      const { data, error } = await k.auth.verifyOtp({ token_hash: svar.token_hash, type: 'magiclink' });
+      if (error) return { ok: false, fejl: laesbarFejl(error) };
+      return { ok: true, bruger: (data && data.user) || null };
+    } catch (e) {
+      return { ok: false, fejl: 'Ingen forbindelse. Tjek nettet, og prøv igen.' };
+    }
+  }
+
   /* ---------- ind og ud ---------- */
 
   async function logInd(raaEmail, kodeord) {
@@ -316,6 +343,23 @@
     try {
       const { data, error } = await k.from('profiler').select('*').eq('id', id).single();
       if (error) return null;
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /* ---------- adgangen (0053, klar-til-live 1.6) ----------
+     true = gyldig adgang, false = udløbet eller betalt tilbage, null = ved
+     ikke (intet net, ingen klient, eller funktionen findes ikke endnu). KUN
+     false må lukke appen: et "ved ikke" må aldrig smide en betalende kunde
+     ud. */
+  async function harAdgang() {
+    const k = faaKlient();
+    if (!k) return null;
+    try {
+      const { data, error } = await k.rpc('har_adgang');
+      if (error || typeof data !== 'boolean') return null;
       return data;
     } catch (e) {
       return null;
@@ -781,10 +825,10 @@
     normaliserEmail, kodeordsFejl,
     normaliserTelefon, visTelefon,
     tokenFraAdressen, aktiver,
-    bedOmKode, rensKode, saetKodeordMedKode,
+    bedOmKode, rensKode, saetKodeordMedKode, logIndMedKode,
     logInd, logUd,
     nuvaerendeBruger, bruger_id, harSession, vedUdlogning,
-    hentProfil, gemProfil,
+    hentProfil, gemProfil, harAdgang,
     inviterPartner, traekPartnerInvitation, hentPartner, fjernPartner, hentSendtInvitation,
     hentSidsteInvitation, hentIndloestInvitation, hentModtagetInvitation, svarPartnerInvitation,
     hentPartnerNavn,
