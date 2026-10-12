@@ -1879,8 +1879,6 @@ function nyForberedelse(ekstra){
        Uden den ville et scenarie, hvor man bevidst har fjernet alt, blive
        fyldt op igen, hver gang siden tegnes. */
     madValg:[], snackValg:[], morgenValg:[], brugValg:[], brugSet:[],
-    invType:null, invModtager:'', invAfsender:'', invStatus:null,
-    invForslag:[], invForslagFra:null, invEnigDato:null,
     /* ---- gæsten på DENNE tur (KN 6/9) ----
        En ven, der inviteres med på én arytme — til forskel fra profilens faste
        partner, der har adgang til alt. ven.status: 'afventer' (SMS sendt) →
@@ -1955,8 +1953,6 @@ function sektionKlar(id){
   const f = s.forberedelse; if(!f) return false;
   switch(id){
     case 'destination': return !!f.destination;
-    /* 'invitation' er ikke længere en sektion — invErKlar() lever videre,
-       men bruges nu kun af turplanen og invitationsskærmen selv. */
     case 'bilen': return bilenKlar(f);
     case 'pakke': return (f.pakkeTjek||[]).length >= pakkePunkter().length;
     default: return !!f.set[id];
@@ -2014,21 +2010,14 @@ function sektionFod(id, næsteOverstyr){
 
   // "Næste" = næste sektion. Fase 1 slutter ikke i et valg, men på den rolige
   // afrunding ("En sund forstyrrelse") — den er ikke et punkt, man skal klare.
-  // Planlægger man sammen, må man ikke snige sig forbi låsen via Næste-knappen —
-  // samme spærring som på tjeklisten på forsiden.
-  let næsteLabel, næsteAktion, næsteLåst = false;
+  let næsteLabel, næsteAktion;
   if(næsteOverstyr){ næsteLabel = 'Næste'; næsteAktion = næsteOverstyr; }
   else if(næste){
-    næsteLåst = ['mad','bilen','pakke'].includes(næste.id) && afventerFællesPlan(s.forberedelse);
     næsteLabel = 'Næste';
-    næsteAktion = næsteLåst ? 'venterPåBekræftelse()' : `gåTil('${næste.id}')`;
+    næsteAktion = `gåTil('${næste.id}')`;
   }
   /* Fase 1's knap ("Destination valgt") er væk med destinationsskærmen
      28/9 — sektionFod() kaldes kun for fase 2's sektioner nu. */
-  // Sidste trin i fase 2. Planlægger man i skjul, er pakkelisten det sidste,
-  // der mangler, før overraskelsen kan sendes — så vejen går tilbage til
-  // invitationen med mailen klar, ikke ud af turen (OD 11/8).
-  else if(gaveKladde(s.forberedelse)){ næsteLabel = 'Videre til invitationen'; næsteAktion = 'tilInvitationMedMail()'; }
   // Sidste trin i hele planlægningen: "Afslut planlægning", ikke "Planen er
   // klar" (OD 31/8). Fase 1's afrunding hedder stadig det sidste — dér er
   // planen faktisk ikke klar, kun stedet.
@@ -2039,7 +2028,7 @@ function sektionFod(id, næsteOverstyr){
      Kun et langt ord ("Afslut planlægning") får den smalle Tilbage, ellers
      brækker det over to linjer ved 320 px. */
   const forrigeKnap = næsteLabel === 'Næste' ? forrigeKnapSmal.replace(' fod-tilbage','') : forrigeKnapSmal;
-  const næsteKnap = `<button class="knap kontur lille${næsteLåst?' låst':''}" onclick="${næsteAktion}">${næsteLabel} ${ik(næsteLåst?'lås':'pil')}</button>`;
+  const næsteKnap = `<button class="knap kontur lille" onclick="${næsteAktion}">${næsteLabel} ${ik('pil')}</button>`;
 
   return `<div style="margin-top:18px">
     <div class="fod-nav">${forrigeKnap}${næsteKnap}</div>
@@ -2471,36 +2460,17 @@ const NAV = [
    lige kom fra — kommer man ind i Forplejningen fra tjeklisten, går tilbage
    til tjeklisten, ikke til "punktet før i rækken".
 
-   En VISNING er ikke bare et skærmnavn: det er skærmen PLUS de undertilstande,
-   der afgør, hvad skærmen viser. Trykker man "Planlæg sammen" inde på
-   invitationssiden, skifter siden jo indhold uden at skifte skærm — det er et
-   skridt, brugeren kan se, og derfor et skridt, Tilbage skal kunne tage igen.
-   Reglen i hele appen: ét synligt skift = ét skridt i historikken.
-
-   Undertilstande der er FREMDRIFT (invStatus: sendt, bekræftet, afslået) hører
-   ikke med — man kan ikke fortryde en afsendt invitation med en tilbage-knap. */
+   En VISNING er skærmen. Indtil 12/10 (klar-til-live, B1) var den også
+   invitationens undertilstande — "Planlæg sammen" skiftede indhold uden at
+   skifte skærm. Invitationen er fjernet, og et objekt er beholdt, så en
+   undertilstand kan komme til igen uden at ændre historikkens form.
+   Reglen i hele appen: ét synligt skift = ét skridt i historikken. */
 let historik = [];
 function visning(){
-  const f = s.forberedelse;
-  return {
-    skærm: aktivSkærm,
-    invType:    f ? (f.invType || null) : null,
-    invVisMail: f ? !!f.invVisMail : false
-  };
+  return { skærm: aktivSkærm };
 }
 function sætVisning(v){
   aktivSkærm = v.skærm;
-  const f = s.forberedelse;
-  if(f){
-    f.invType = v.invType; f.invVisMail = v.invVisMail;
-    /* EN GAVE ER PRIVAT, og det er ikke til at vælge fra: hele pointen med
-       "Overraskelse — i det skjulte" er, at modtageren ikke kan se den.
-       Er modtageren rejsemakkeren, kunne hun det, indtil 0029.
-       Den anden vej sætter vi IKKE automatisk: fortryder man gaven, er
-       det ikke givet, at turen så skal deles — det skal man selv sige. */
-    if(v.invType === 'gave') f.privat = true;
-    gem();
-  }
   tegn();
   efterNavigation();
 }
@@ -3373,7 +3343,7 @@ function arytmiTæller(){
    men valgte intet) tæller ikke — så forsiden forbliver ren. */
 function turIGang(){
   const f = s.forberedelse; if(!f) return false;
-  return !!(f.destination || f.dato || f.invType
+  return !!(f.destination || f.dato
     || f.set.mad || f.set.bilen
     || (f.pakkeTjek && f.pakkeTjek.length));
 }
@@ -4576,21 +4546,8 @@ function dageTil(iso){
   const nu = new Date(); nu.setHours(0,0,0,0);
   return Math.round((new Date(iso+'T00:00:00') - nu) / 86400000);
 }
-/* Planlægger man sammen, giver det ikke mening at gøre resten klar, før
-   rejsemakkeren har bekræftet datoen — først da er planen fælles. Gave og
-   solo-ture skal derimod kunne forberedes fra start, så låsen gælder kun 'sammen'. */
-function afventerFællesPlan(f){ return f.invType==='sammen' && f.invStatus!=='bekræftet'; }
-/* Turen planlægges som en gave, der endnu ikke er sendt. */
-function gaveKladde(f){ return !!(f && f.invType==='gave' && f.invStatus!=='sendt' && f.invModtager); }
-/* Fra pakkelisten tilbage til invitationen — med mailen fremme, klar til at
-   rette og sende. */
-function tilInvitationMedMail(){
-  const f = s.forberedelse;
-  f.invVisMail = true; gem();
-  tilbageTil('invitation');
-}
-/* Planlægningen er slut for de veje, der ikke sender en overraskelse.
-   Forsiden skifter til de tre punkter om at komme afsted. */
+/* Planlægningen er slut. Forsiden skifter til de tre punkter om at komme
+   afsted. */
 function planenErKlar(){
   const f = s.forberedelse;
   f.planlagt = true; gem();
@@ -4599,14 +4556,8 @@ function planenErKlar(){
   nulstilHistorik(); gåTil('log');
   infoModal(t('loggen.planlagt','Turen er planlagt. Den ligger nu i din Arytme log.'), t('faelles.godt','Godt'));
 }
-function venterPåBekræftelse(){
-  const f = s.forberedelse;
-  flash('I skal først blive enige om datoen med '+(f.invModtager||'rejsemakkeren')+'.', 'lås');
-}
 function tjeklisteData(){
   const f = s.forberedelse;
-  const låst = afventerFællesPlan(f);
-  const låstAktion = "venterPåBekræftelse()";
   return [
     { navn:'Dato',          under: f.dato?pænDato(f.dato):'Vælg afrejsedato',      klar:!!f.dato,        aktion:"gåTil('turdato')" },
     { navn:'Destination',   under: f.destination?esc(f.destination.navn):'Find et sted', klar:!!f.destination,
@@ -4616,9 +4567,9 @@ function tjeklisteData(){
        et tilbud, man tager, når man har lyst. */
     /* "Planlagt" frem for "3 valgt" (OD 30/8) — tallet fortalte ingenting om,
        hvor langt man var, kun hvor mange gange man havde trykket. */
-    { navn:'Forplejning',   under: låst?'Låst indtil invitationen er bekræftet':(forplejningKlar()?'Planlagt':'Snacks, drikkevarer og det, der skal til for at nyde det'), klar: forplejningKlar(), aktion: låst?låstAktion:"gåTil('mad')", låst, plan:true },
-    { navn:'Bil',           under: låst?'Låst indtil invitationen er bekræftet':(bilenKlar(f)?'Planlagt':'Strøm, sengetøj og udstyr'), klar: bilenKlar(f), aktion: låst?låstAktion:"gåTil('bilen')", låst, plan:true },
-    { navn:'Personligt',    under: låst?'Låst indtil invitationen er bekræftet':'De personlige ting', klar: (f.pakkeTjek||[]).length>=pakkePunkter().length, aktion: låst?låstAktion:"gåTil('pakke')", låst, plan:true }
+    { navn:'Forplejning',   under: forplejningKlar()?'Planlagt':'Snacks, drikkevarer og det, der skal til for at nyde det', klar: forplejningKlar(), aktion: "gåTil('mad')", plan:true },
+    { navn:'Bil',           under: bilenKlar(f)?'Planlagt':'Strøm, sengetøj og udstyr', klar: bilenKlar(f), aktion: "gåTil('bilen')", plan:true },
+    { navn:'Personligt',    under: 'De personlige ting', klar: (f.pakkeTjek||[]).length>=pakkePunkter().length, aktion: "gåTil('pakke')", plan:true }
   ];
 }
 /* De tre planlægningspunkter er klaret — så skal de ikke blive ved med at
@@ -5054,10 +5005,10 @@ function skærmHjemNedtælling(){
      være den samme knap to gange. */
   const fase1 = (f.fase||1) === 1;
   const punkt = it => `
-      <button class="tjek-punkt ${it.klar?'klar':''} ${it.låst?'låst':''}" onclick="${it.aktion}">
-        <span class="tjek-boks">${ik(it.låst?'lås':'tjek')}</span>
+      <button class="tjek-punkt ${it.klar?'klar':''}" onclick="${it.aktion}">
+        <span class="tjek-boks">${ik('tjek')}</span>
         <span class="tjek-krop"><span class="tjek-navn">${it.navn}</span><span class="tjek-under">${it.under}</span></span>
-        <span class="tjek-pil">${ik(it.låst?'lås':'pil')}</span>
+        <span class="tjek-pil">${ik('pil')}</span>
       </button>`;
   const grund = items.filter(i=>!i.plan);   // dato og destination
   const plan  = items.filter(i=>i.plan);    // forplejning, bil, personligt
@@ -5122,9 +5073,6 @@ function skærmHjemNedtælling(){
     ${klaret===items.length
       ? `<button class="knap primær bred" style="margin-top:14px" onclick="tilAfsted()">${t('hjem.alterklar','Alt er klar — afsted')} ${ik('måne')}</button>`
       : `<p class="dæmpet" style="text-align:center;font-size:12.5px;margin-top:12px">${t('hjem.krydsresten','Kryds resten af, så bliver hele listen grøn.')}</p>`}
-    <!-- Invitationen er skjult i hele appen, indtil brugere er afklaret
-         (OD 31/8, J1). inviterKnap() og skærmInvitation() står urørt i filen —
-         de er bare ikke kaldt fra nogen skærm. -->
     <!-- Den runde "Se den foreløbige turplan" er væk fra forsiden (OD 5/10:
          turen har allerede "Se/ret planen" i Arytme log). foreløbigPlanKnap()
          står urørt i filen, men kaldes ikke. -->
@@ -5170,22 +5118,6 @@ function foreløbigPlanKnap(){
     </button>
     <div class="inviter-tekst">${t('hjem.turplanknap','Se den foreløbige turplan')}</div>
     <div class="inviter-under">${t('hjem.turplanunder','Sådan ser turen ud indtil videre')}</div>
-  </div>`;
-}
-/* Invitationen som rund knap i bunden af overblikket (OD 13/8) — samme form
-   som startknappen på forsiden, så det læses som "det store greb her på siden"
-   og ikke som endnu en række i en liste. Har man allerede valgt, står
-   status under knappen i stedet for opfordringen. */
-function inviterKnap(){
-  const f = s.forberedelse;
-  const valgt = !!f.invType;
-  return `<div class="inviter-blok">
-    <button class="rund-knap inviter-rund" onclick="gåTil('invitation')"
-            aria-label="${esc(t('hjem.inviterknap','Inviter til denne arytme'))}">
-      ${ik(valgt ? (f.invType==='gave'?'gave':f.invType==='selv'?'puls':'folk') : 'folk')}
-    </button>
-    <div class="inviter-tekst">${valgt ? esc(invUnderTekst(f)) : t('hjem.inviterknap','Inviter til denne arytme')}</div>
-    ${valgt?'':`<div class="inviter-under">${t('hjem.inviterunder','Sammen, som gave — eller helt for dig selv')}</div>`}
   </div>`;
 }
 /* Når de tre planlægningspunkter er klaret, er det listen, de har lavet,
@@ -5331,8 +5263,8 @@ function venSMSStandard(){
   const felter = { navn, afsender:afs, sted, hvornaar:hvornår, hvor, hjem, pakkeliste:listeLinje };
   return skabelon.replace(/\{(navn|afsender|sted|hvornaar|hvor|hjem|pakkeliste)\}/g, (_, k) => felter[k]);
 }
-/* Kladden fryses IKKE ved første tegning, sådan som mailen til rejsemakkeren
-   gør (se mailKladde). Fordelingen af pakkelisten laves på selve den skærm,
+/* Kladden fryses IKKE ved første tegning, sådan som den gamle invitationsmail
+   gjorde (fjernet 12/10). Fordelingen af pakkelisten laves på selve den skærm,
    beskeden står på, og et frosset "3 ting står på din" ville lyve i samme
    sekund, man flyttede et punkt. Standardteksten regnes derfor live — indtil
    brugeren selv skriver i feltet. Derfra er teksten hans. */
@@ -5759,12 +5691,6 @@ function skiftTurDeling(id){
       {ven: (f.ven.navn||t('gaest.gaestenstor','Gæsten')).split(' ')[0], navn: partnerNavn().split(' ')[0]}), 'folk');
     return;
   }
-  /* En gave, der ikke er sendt endnu, kan ikke deles: så var den ikke en
-     overraskelse. Vi siger det i stedet for bare at lade være. */
-  if(gaveKladde(f) && f.privat){
-    flash(t('turplan.gaveerskjult','Overraskelsen er skjult, indtil du sender den.'), 'gave');
-    return;
-  }
   /* Sættes ud fra det, der VISES, ikke ud fra !f.privat: står feltet
      tomt, ville !undefined give true — altså ingen synlig ændring, og en
      kontakt, der ikke rykker sig, ligner en fejl. */
@@ -5916,55 +5842,12 @@ function planBSteder(retur){
 }
 
 /* =============================================================
-   INVITATION — tre veje: planlæg sammen · giv som gave · for mig selv
-   Alt det tværgående (gæstelogin, datoforhandling, den flotte
-   invitation) er simuleret i prototypen og markeret som sådan.
+   TUREN SOM TEKST — til gæstens SMS og turplanen
+   Resten af invitationen (Planlæg sammen, Giv som gave) er fjernet
+   12/10 (klar-til-live, B1). Rejsemakkeren på mail og ven-SMS'en
+   afløste den.
    ============================================================= */
-/* Navn/e-mail-felterne bruger kun gem() (ikke tegn()), så man ikke mister
-   fokus midt i indtastningen. Det betyder "Se invitation"-knappen ikke
-   automatisk opdaterer sin disabled-status — den sætter vi derfor direkte. */
-function opdaterInvKnap(knapId){
-  const f = s.forberedelse; if(!f) return;
-  const knap = $(knapId); if(!knap) return;
-  knap.disabled = !(f.invModtager && f.invEmail);
-}
-function invErKlar(f){
-  if(f.invType==='selv')   return true;
-  // sendt tæller som klaret: brugeren har gjort sit — svaret er rejsemakkerens
-  if(f.invType==='sammen') return f.invStatus==='bekræftet' || f.invStatus==='sendt';
-  if(f.invType==='gave')   return f.invStatus==='sendt' && f.gaveSvar!=='afslået';
-  return false;
-}
-function invUnderTekst(f){
-  if(!f.invType)         return 'Inviter til arytmen';
-  if(f.invType==='selv') return 'Kun for dig selv';
-  if(f.invType==='gave') return f.invStatus!=='sendt' ? 'Overraskelse — i det skjulte'
-    : f.gaveSvar==='bekræftet' ? 'Bekræftet af '+(f.invModtager||'modtageren')
-    : f.gaveSvar==='afslået'   ? 'Afvist — aftal en ny dato'
-    : 'Overraskelse sendt — afventer svar';
-  const navn = f.invModtager || 'din rejsemakker';
-  if(f.invStatus==='bekræftet') return 'Bekræftet med '+navn;
-  if(f.invStatus==='afslået')   return 'Afslået — inviter en anden';
-  if(f.invStatus==='forhandler')return f.invForslagFra==='gæst' ? navn+' foreslog nye datoer' : 'Afventer '+navn;
-  if(f.invStatus==='sendt')     return 'Afventer bekræftelse fra '+navn;
-  return 'Planlægger sammen';
-}
-function forslagsDatoer(basisISO){
-  const b = new Date((basisISO || new Date().toISOString().slice(0,10)) + 'T12:00:00');
-  return [4,9,15].map(dg=>{ const d=new Date(b); d.setDate(d.getDate()+dg); return d.toISOString().slice(0,10); });
-}
-function gæsteKode(f){
-  let h=0; const str = f.invModtager || 'gæst';
-  for(let i=0;i<str.length;i++) h=(h*31 + str.charCodeAt(i))>>>0;
-  return 'GÆST-'+(1000 + h%9000);
-}
-
-/* ---------- mail-skabelonerne ----------
-   Teksterne er Kennets egne, ord for ord. De fyldes med turens data og
-   lægges i et redigerbart felt: brugeren retter selv til og trykker send. */
 function afsenderNavn(){ return (s.profil && s.profil.navn) || 'En ven'; }
-function turDatoTekst(f){ return f.dato ? pænDato(f.dato) : '(dato ikke valgt endnu)'; }
-function turStedTekst(f){ return f.destination ? f.destination.navn : '(destination ikke valgt endnu)'; }
 /* Hjemkomst er en dato, ikke et klokkeslæt — udledt af trin 1's svar
    (samme dag / næste dag / anden dato). */
 function turHjemkomstTekst(f){
@@ -5978,358 +5861,6 @@ function turHjemkomstTekst(f){
 }
 function returKl(f){ return f.returtid ? ' · ca. kl. ' + f.returtid : ''; }
 
-function mailSammen(f){
-  const modt = f.invModtager || 'din rejsemakker';
-  const afs  = afsenderNavn();
-  return `Hej ${modt}
-
-${afs} har inviteret dig til en arytme.
-
-Dato: ${turDatoTekst(f)}
-Hjemkomst: ${turHjemkomstTekst(f)}
-Destination: ${turStedTekst(f)}
-
-En arytme er en lille, bevidst forstyrrelse af hverdagens rytme.
-
-Et døgn eller en aften, hvor bilen og naturen bliver jeres frirum. Hvor I kan trække stikket, komme ud i naturen og nyde tiden sammen – uden at det kræver ferie eller uger med planlægning.
-
-${afs} har allerede taget det første skridt og vil gerne dele denne arytme med dig. Sammen gør I turen klar. Hvis du accepterer invitationen, hjælper Arytmi appen jer med at planlægge resten.
-
-Appen hjælper jer med at fordele opgaverne og huske på alt det vigtigste, så I nemt kan få styr på:
-
-• Mad og drikke
-• Pakkelisten
-• Klargøring af bilen
-
-På den måde bruger I mindre tid på planlægning og mere tid på det, der betyder noget.
-
-Vil du med?
-
-[Bekræft invitation]
-
-Hvis datoen ikke passer, kan du foreslå en ny, som ${afs} kan tage stilling til. Tryk her for at foreslå en ny dato i appen.
-
-Når invitationen er bekræftet, sender vi dig en ny mail med gratis link til Arytmi-appen og dine personlige loginoplysninger, så I sammen kan gøre jeres arytme klar.
-
-Vi glæder os til at sende jer afsted.
-
-Team Arytmi
-
-"Små forstyrrelser. Store øjeblikke."`;
-}
-
-function mailGave(f){
-  const modt = f.invModtager || 'din rejsemakker';
-  const afs  = afsenderNavn();
-  const adr  = f.invAfhentning || '(afhentningsadresse)';
-  const pak  = (f.invPakkeliste && f.invPakkeliste.length ? f.invPakkeliste : ['Nattøj','Toilettaske','Varmt tøj til aftenen']);
-  return `Hej ${modt}
-
-Nogen har planlagt noget særligt til dig.
-
-${afs} har inviteret dig til en arytme.
-
-Dato: ${turDatoTekst(f)}
-Hjemkomst: ${turHjemkomstTekst(f)}
-
-En arytme er en lille, bevidst forstyrrelse af hverdagens rytme.
-
-Et lille afbræk, hvor der er plads til ro, nærvær og tid sammen. Ikke fordi hverdagen skal laves om, men fordi den fortjener små øjeblikke, der bryder rytmen og giver nye minder.
-
-Den her arytme er allerede planlagt specielt til dig.
-
-Du skal ikke tænke på destinationen, planlægningen eller alt det praktiske. Det har ${afs} allerede taget sig af.
-
-Det eneste, du skal gøre, er at være klar her: ${adr} og tage disse få ting med:
-
-DIN PAKKELISTE
-
-• ${pak[0]||''}
-• ${pak[1]||''}
-• ${pak[2]||''}
-
-Resten venter på dig.
-
-ER DU KLAR?
-
-[Jeg glæder mig – bekræft invitationen]
-
-Vi håber, at denne arytme bliver begyndelsen på mange flere.
-
-De bedste hilsner
-
-Team Arytmi
-
-"Livet har godt af en lille arytme."
-
-Tryk her hvis du ikke kan deltage i arytmen`;
-}
-
-/* Mail-kladden gemmes, så brugerens rettelser ikke forsvinder ved gentegning.
-   Nulstilles kun, når man selv beder om det. */
-function mailKladde(f){
-  if(f.invMailTekst == null) f.invMailTekst = (f.invType==='gave' ? mailGave(f) : mailSammen(f));
-  return f.invMailTekst;
-}
-function nulstilMail(){
-  const f = s.forberedelse;
-  f.invMailTekst = (f.invType==='gave' ? mailGave(f) : mailSammen(f));
-  gem(); tegn();
-  flash('Teksten er sat tilbage til Arytmis egen.', 'mail');
-}
-function mailFelt(sendLabel, sendAktion){
-  const f = s.forberedelse;
-  return `
-    <div class="kort">
-      <div class="etiket">${t('invitation.mailtop','Sådan ser mailen ud')}</div>
-      <p class="dæmpet" style="font-size:13px;margin:6px 0 10px">${t('invitation.mailret','Ret frit i teksten, før du sender.')}</p>
-      <textarea class="mail-felt" oninput="s.forberedelse.invMailTekst=this.value;gem()">${esc(mailKladde(f))}</textarea>
-      <button class="knap primær bred" style="margin-top:14px" onclick="${sendAktion}">${sendLabel} ${ik('mail')}</button>
-      <div style="display:flex;gap:10px;margin-top:10px">
-        <button class="knap kontur lille" style="flex:1" onclick="gemUnderTrin();s.forberedelse.invVisMail=false;gem();tegn()">${t('invitation.retoplysninger','Ret oplysninger')}</button>
-        <button class="knap kontur lille" style="flex:1" onclick="nulstilMail()">${t('invitation.nulstiltekst','Nulstil teksten')}</button>
-      </div>
-    </div>`;
-}
-
-/* Invitationen er ikke længere et trin i rækken, så den kan ikke låne
-   sektionHeader/sektionFod — de slår op i SEKTIONER og ville falde over et id,
-   der ikke findes. Den har fået sin egen top og bund: almindelig tilbage-pil
-   op i hjørnet og én vej hjem i bunden. */
-function skærmInvitation(){
-  const f = s.forberedelse; if(!f){ gåTil('hjem'); return; }
-  let krop;
-  if(!f.invType)              krop = invVælgKrop();
-  else if(f.invType==='selv') krop = invSelvKrop();
-  else if(f.invType==='sammen')krop = invSammenKrop();
-  else                        krop = invGaveKrop();
-  $('indhold').innerHTML = `<div class="side anim">
-    ${skærmTop(t('invitation.titel','Inviter til denne arytme'),'hjem',t('invitation.etiket','Hvem skal med?'))}
-    ${krop}
-    <div style="margin-top:18px;text-align:center">
-      <button class="knap kontur lille" onclick="tilbageTil('hjem')">${ik('tilbage')} ${t('invitation.tiloverblik','Tilbage til overblikket')}</button>
-    </div>
-  </div>`;
-}
-function invVælgKrop(){
-  const valg = [
-    { type:'sammen', ikon:'folk',   navn:t('invitation.valgsammen','Planlæg sammen'),   tekst:t('invitation.valgsammenunder','I planlægger arytmen sammen — begge er med fra hver jeres telefon.') },
-    { type:'gave',   ikon:'gave',   navn:t('invitation.valggave','Giv som gave'),     tekst:t('invitation.valggaveunder','Planlæg alt i det skjulte og send en færdig overraskelse, når du er klar.') },
-    { type:'selv',   ikon:'puls', navn:t('invitation.valgselv','Denne arytme er for mig'), tekst:t('invitation.valgselvunder','Du tager afsted alene.') }
-  ];
-  return `
-    <div class="kort guide-brød"><p>${t('invitation.vaelghvordan','Vælg, hvordan I skal afsted.')}</p></div>
-    ${valg.map(v=>`
-      <button class="res-kort" onclick="vælgInvType('${v.type}')">
-        <span class="res-ikon">${ik(v.ikon)}</span>
-        <span class="res-krop"><span class="res-navn">${v.navn}</span><span class="res-meta">${v.tekst}</span></span>
-        <span class="tjek-pil">${ik('pil')}</span>
-      </button>`).join('')}`;
-}
-function vælgInvType(type){
-  const f = s.forberedelse;
-  gemUnderTrin();
-  f.invType = type;
-  if(type==='selv')      f.invStatus = 'alene';
-  else if(type==='gave') f.invStatus = (f.invStatus==='sendt') ? 'sendt' : 'planlægger';
-  else                   f.invStatus = (f.invStatus==='bekræftet') ? 'bekræftet' : 'kladde';
-  gem(); tegn();
-}
-function invSkift(){
-  const f = s.forberedelse;
-  gemUnderTrin();
-  f.invType=null; f.invStatus=null; f.invForslag=[]; f.invForslagFra=null; f.invEnigDato=null;
-  gem(); tegn();
-}
-function invSelvKrop(){
-  return `
-    <div class="advarsel" style="background:#e2ead2;border-color:#c3d3a8;color:#4d5c3a">${ik('tjek')} ${t('invitation.selvbrod','Denne arytme er for dig selv. Nyd den — resten af planen er klar til dig alene.')}</div>
-    <div style="text-align:center;margin-top:16px"><button class="knap kontur lille" onclick="invSkift()">${ik('folk')} ${t('invitation.andenmaade','Vælg en anden måde')}</button></div>`;
-}
-
-/* ---------- Planlæg sammen ---------- */
-function gæstePreview(f){
-  return `
-  <div class="ob-mail">
-    <div class="m-top">${ik('mail')} ${t('gave.til','Til: {mail}',{mail:f.invEmail||f.invModtager||t('invitation.standardnavn','din rejsemakker')})}</div>
-    <div class="m-krop">
-      <pre class="mail-vis">${esc(mailKladde(f))}</pre>
-      <p class="dæmpet" style="font-size:13px;margin-top:14px">${t('invitation.vedbekraeftelse','Ved bekræftelse får {navn} en mail med login:',{navn:f.invModtager||t('invitation.rejsemakkeren','rejsemakkeren')})}</p>
-      <div class="ob-kode">${gæsteKode(f)}</div>
-      <p class="dæmpet" style="font-size:12px;text-align:center">${t('invitation.prototypenote','Prototype — gæstelogin er simuleret.')}</p>
-    </div>
-  </div>`;
-}
-function invSammenKrop(){
-  const f = s.forberedelse;
-  const status = f.invStatus || 'kladde';
-  const raaNavn = f.invModtager || t('invitation.standardnavn','din rejsemakker');
-  const navn = esc(raaNavn);
-  if(status==='kladde'){
-    return `
-      <div class="kort guide-brød"><p>${t('invitation.sammenbrod','I planlægger arytmen sammen. Send en invitation, bliv enige om datoen — så bliver resten af planen fælles.')}</p></div>
-      ${f.invVisMail ? mailFelt(t('invitation.sendknap','Send invitation'),'invSend()') : `
-      <div class="kort">
-        <label class="felt-etiket" style="margin-top:0">${t('invitation.navn','Rejsemakkerens navn')}</label>
-        <input type="text" placeholder="${esc(t('invitation.navnplads','Fx Anne'))}" value="${esc(f.invModtager||'')}" oninput="s.forberedelse.invModtager=this.value;s.forberedelse.invMailTekst=null;gem();opdaterInvKnap('invSeKnap')">
-        <label class="felt-etiket">${t('invitation.mail','Rejsemakkerens e-mail')}</label>
-        <input type="email" placeholder="${esc(t('invitation.mailplads','anne@mail.dk'))}" value="${esc(f.invEmail||'')}" oninput="s.forberedelse.invEmail=this.value;gem();opdaterInvKnap('invSeKnap')">
-        <label class="felt-etiket">${t('invitation.foreslaaetdato','Foreslået dato')}</label>
-        <div class="sted-chips"><span class="sted-chip valgt">${ik('kort')} ${f.dato?pænDato(f.dato):t('invitation.ingendato','Ingen dato valgt endnu')}</span></div>
-        <button class="knap primær bred" id="invSeKnap" style="margin-top:16px" ${f.invModtager&&f.invEmail?'':'disabled'} onclick="gemUnderTrin();s.forberedelse.invVisMail=true;gem();tegn()">${t('invitation.seinvitation','Se invitation')} ${ik('pil')}</button>
-      </div>`}
-      <div style="text-align:center;margin-top:14px"><button class="knap kontur lille" onclick="invSkift()">${ik('folk')} ${t('invitation.andenmaade','Vælg en anden måde')}</button></div>`;
-  }
-  if(status==='bekræftet'){
-    return `
-      <div class="mørk-kort"><div class="glød"></div>
-        <div class="etiket" style="color:rgba(246,243,234,.6)">${t('invitation.enige','I er enige')}</div>
-        <h3 style="margin-top:4px">${t('invitation.oprettet','Turen er oprettet')}</h3>
-        <p style="margin-top:6px">${t('invitation.enigetekst','Du og {navn} er enige om <b>{dato}</b>. Nu er resten af planen fælles — I fylder tjeklisten ud sammen.',{navn:raaNavn,dato:pænDato(f.invEnigDato||f.dato)})}</p>
-      </div>`;
-  }
-  if(status==='afslået'){
-    return `
-      <div class="advarsel">${t('invitation.afslaaet','{navn} kan desværre ikke denne gang. Det er helt okay — måske en anden gang.',{navn:raaNavn})}</div>
-      <div class="kort">
-        <button class="knap primær bred" onclick="invNulstilSammen()">${ik('mail')} ${t('invitation.inviteranden','Inviter en anden')}</button>
-        <button class="knap kontur bred" style="margin-top:10px" onclick="vælgInvType('selv')">${t('invitation.selv','Tag afsted selv')}</button>
-      </div>`;
-  }
-  if(status==='forhandler' && f.invForslagFra==='gæst'){
-    return `
-      <div class="kort guide-brød"><p>${t('invitation.kanikkeforeslaar','<b>{navn}</b> kan ikke den {dato} og foreslår i stedet:',{navn:raaNavn,dato:f.dato?pænDato(f.dato):t('invitation.foreslaaededato','foreslåede dato')})}</p></div>
-      <div class="kort">
-        <div class="etiket">${t('invitation.vaelgenaf','Vælg en af {navn}s datoer',{navn:raaNavn})}</div>
-        ${f.invForslag.map(d=>`<button class="forslag-knap" style="margin-top:10px" onclick="brugerBekræftDato('${d}')"><span class="f-ikon">${ik('kort')}</span><span style="flex:1"><b>${pænDato(d)}</b></span><span class="pil">${ik('tjek')}</span></button>`).join('')}
-        <button class="knap kontur bred" style="margin-top:14px" onclick="brugerForeslåNye()">${ik('kort')} ${t('invitation.ingenpasser','Ingen passer — foreslå 3 nye')}</button>
-      </div>`;
-  }
-  if(status==='forhandler'){ // bruger har lige foreslået — afventer gæst
-    return `
-      <div class="advarsel">${t('invitation.duforeslog','Du foreslog 3 nye datoer. Nu venter I på {navn}.',{navn:raaNavn})}</div>
-      <div class="kort">
-        <div class="etiket">${t('invitation.dineforslag','Dine forslag')}</div>
-        ${f.invForslag.map(d=>`<div class="vært-række">${ik('kort')}<div class="v-tekst">${pænDato(d)}</div></div>`).join('')}
-      </div>
-      <div class="kort">
-        <div class="etiket">${t('invitation.demogaest','Prøv gæstens svar (demo)')}</div>
-        <p class="dæmpet" style="font-size:13px;margin:6px 0 12px">${t('invitation.hvordansvarer','Hvordan svarer {navn}?',{navn:raaNavn})}</p>
-        ${f.invForslag.map(d=>`<button class="knap primær bred" style="margin-top:8px" onclick="brugerBekræftDato('${d}')">${ik('tjek')} ${t('invitation.bekraefterdato','{navn} bekræfter {dato}',{navn:raaNavn,dato:pænDato(d)})}</button>`).join('')}
-        <button class="knap kontur bred" style="margin-top:10px" onclick="gæstAfslå()">${ik('kryds')} ${t('invitation.afslaaarytmen','Afslå arytmen')}</button>
-      </div>`;
-  }
-  // status === 'sendt'
-  return `
-    <div class="advarsel">${t('invitation.sendttil','Invitation sendt til {navn}. Nu venter I på svar.',{navn:raaNavn})}</div>
-    ${gæstePreview(f)}
-    <div class="kort">
-      <div class="etiket">${t('invitation.demogaest','Prøv gæstens svar (demo)')}</div>
-      <p class="dæmpet" style="font-size:13px;margin:6px 0 12px">${t('invitation.saadansvarer','Sådan svarer {navn} fra sin egen telefon:',{navn:raaNavn})}</p>
-      <button class="knap primær bred" onclick="gæstBekræft()">${ik('tjek')} ${t('invitation.bekraeft','Bekræft {dato}',{dato:f.dato?pænDato(f.dato):t('invitation.datoen','datoen')})}</button>
-      <button class="knap blød bred" style="margin-top:10px" onclick="gæstForeslå()">${ik('kort')} ${t('invitation.foreslaaandre','Foreslå 3 andre datoer')}</button>
-      <button class="knap kontur bred" style="margin-top:10px" onclick="gæstAfslå()">${ik('kryds')} ${t('invitation.afslaaarytmen','Afslå arytmen')}</button>
-    </div>`;
-}
-function invSend(){
-  const f = s.forberedelse; if(!f.invModtager){ flash(t('invitation.manglermodtager','Skriv hvem invitationen er til.')); return; }
-  f.invStatus='sendt'; f.invVisMail=false; gem();
-  // Når mailen er afsted, hører brugeren hjemme på overblikket over resten
-  tilbageTil('hjem');
-  infoModal(t('invitation.sendtmodal','Invitation sendt til <b>{navn}</b>. Du får besked, når {navn} bekræfter datoen — så kan I sammen planlægge resten af arytmen.',{navn:f.invModtager}));
-}
-function gæstBekræft(){
-  const f = s.forberedelse; f.invEnigDato=f.dato; f.invStatus='bekræftet'; gem(); tegn();
-  flash('I er enige om datoen. Turen er oprettet.', 'puls');
-}
-function gæstForeslå(){
-  const f = s.forberedelse; f.invForslag=forslagsDatoer(f.dato); f.invForslagFra='gæst'; f.invStatus='forhandler'; gem(); tegn();
-}
-function gæstAfslå(){
-  const f = s.forberedelse; f.invStatus='afslået'; gem(); tegn();
-}
-function brugerBekræftDato(iso){
-  const f = s.forberedelse; f.dato=iso; f.invEnigDato=iso; f.invStatus='bekræftet'; gem(); tegn();
-  flash('I er enige om '+pænDato(iso)+'. Turen er oprettet.', 'puls');
-}
-function brugerForeslåNye(){
-  const f = s.forberedelse; f.invForslag=forslagsDatoer(f.invForslag[0]||f.dato); f.invForslagFra='bruger'; f.invStatus='forhandler'; gem(); tegn();
-}
-function invNulstilSammen(){
-  const f = s.forberedelse;
-  f.invStatus='kladde'; f.invModtager=''; f.invForslag=[]; f.invForslagFra=null; f.invEnigDato=null;
-  gem(); tegn();
-}
-
-/* ---------- Giv som gave ---------- */
-function invGaveKrop(){
-  const f = s.forberedelse;
-  if(f.invStatus==='sendt'){
-    const raaNavn = f.invModtager || t('gave.standardnavn','Din rejsemakker');
-    const navn = esc(raaNavn);
-    const svar = f.gaveSvar;
-    return `
-      <div class="mørk-kort"><div class="glød"></div>
-        <div class="etiket" style="color:rgba(246,243,234,.6)">${t('gave.sendt','Overraskelsen er sendt')}</div>
-        <h3 style="margin-top:4px">${t('gave.inviteret','{navn} er inviteret',{navn:raaNavn})}</h3>
-        <p style="margin-top:6px">${svar==='bekræftet' ? t('gave.bekraeftet','{navn} har bekræftet. Nu kan I bare glæde jer.',{navn:raaNavn})
-          : svar==='afslået' ? t('gave.kanikke','{navn} kan ikke den dag.',{navn:raaNavn})
-          : t('gave.paavej','Invitationen er på vej. Du får en besked, så snart {navn} svarer.',{navn:raaNavn})}</p>
-      </div>
-      ${svar==='afslået' ? `
-      <div class="advarsel" style="margin-top:14px">${ik('klokke')} ${t('gave.kanikkelang','{navn} kan ikke den dag. Aftal en ny dato direkte med hinanden — en overraskelse kan appen ikke forhandle for jer. Tidspunktet kan du rette her i appen bagefter.',{navn:raaNavn})}</div>
-      <div class="kort">
-        <button class="knap primær bred" onclick="gåTil('turdato')">${ik('kort')} ${t('gave.retdato','Ret dato og tid')}</button>
-      </div>` : ''}
-      <div class="ob-mail">
-        <div class="m-top">${ik('mail')} ${t('gave.til','Til: {mail}',{mail:f.invEmail||f.invModtager||t('invitation.standardnavn','din rejsemakker')})}</div>
-        <div class="m-krop"><pre class="mail-vis">${esc(mailKladde(f))}</pre></div>
-      </div>
-      ${!svar ? `
-      <div class="kort">
-        <div class="etiket">${t('gave.demo','Prøv modtagerens svar (demo)')}</div>
-        <p class="dæmpet" style="font-size:13px;margin:6px 0 12px">${t('gave.saadansvarer','Sådan svarer {navn} på overraskelsen:',{navn:raaNavn})}</p>
-        <button class="knap primær bred" onclick="gaveSvar('bekræftet')">${ik('tjek')} ${t('gave.glaedermig','Jeg glæder mig — bekræft')}</button>
-        <button class="knap kontur bred" style="margin-top:10px" onclick="gaveSvar('afslået')">${ik('kryds')} ${t('gave.kanikkedeltage','Kan ikke deltage')}</button>
-      </div>` : ''}`;
-  }
-  const mad = forplejningKlar(), bil = bilenKlar(f), pakke = (f.pakkeTjek||[]).length>=pakkePunkter().length;
-  const rk = (ok,navn,under,mål)=>`<button class="tjek-punkt ${ok?'klar':''}" onclick="gåTil('${mål}')"><span class="tjek-boks">${ik('tjek')}</span><span class="tjek-krop"><span class="tjek-navn">${navn}</span><span class="tjek-under">${under}</span></span><span class="tjek-pil">${ik('pil')}</span></button>`;
-  return `
-    <div class="kort guide-brød"><p>${t('gave.brod','<b>Planlæg turen som en overraskelse.</b> {navn} ser ingenting endnu. Gør detaljerne klar, og send så den færdige invitation.',{navn:f.invModtager||t('gave.standardnavn','Din rejsemakker')})}</p></div>
-    ${f.invVisMail ? mailFelt(t('gave.sendknap','Send overraskelsen'),'gaveSend()') : `
-    <div class="kort">
-      <label class="felt-etiket" style="margin-top:0">${t('gave.navn','Modtagerens navn')}</label>
-      <input type="text" placeholder="${esc(t('gave.navnplads','Fx Anne'))}" value="${esc(f.invModtager||'')}" oninput="s.forberedelse.invModtager=this.value;s.forberedelse.invMailTekst=null;gem();opdaterInvKnap('invGaveKnap')">
-      <label class="felt-etiket">${t('gave.mail','Modtagerens e-mail')}</label>
-      <input type="email" placeholder="${esc(t('gave.mailplads','anne@mail.dk'))}" value="${esc(f.invEmail||'')}" oninput="s.forberedelse.invEmail=this.value;gem();opdaterInvKnap('invGaveKnap')">
-      <label class="felt-etiket">${t('gave.moedes','Hvor skal I mødes?')} <span class="dæmpet" style="font-weight:400">${t('gave.imailen','(står i mailen)')}</span></label>
-      <input type="text" placeholder="${esc(t('gave.moedesplads','Fx hjemme kl. 15'))}" value="${esc(f.invAfhentning||'')}" oninput="s.forberedelse.invAfhentning=this.value;s.forberedelse.invMailTekst=null;gem()">
-    </div>
-    <div class="sektion"><h3>${t('gave.goerklar','Gør klar i det skjulte')}</h3></div>
-    ${rk(mad,'Mad & drikke','Forplejning til turen','mad')}
-    ${rk(bil,'Bilen','Strøm, sengetøj og udstyr','bilen')}
-    ${rk(pakke,'Pakkeliste','De personlige ting','pakke')}
-    <button class="knap primær bred ånde" id="invGaveKnap" style="margin-top:18px" ${f.invModtager&&f.invEmail?'':'disabled'} onclick="gemUnderTrin();s.forberedelse.invVisMail=true;gem();tegn()">${ik('gave')} Se overraskelsen ${ik('pil')}</button>`}
-    <div style="text-align:center;margin-top:14px"><button class="knap kontur lille" onclick="invSkift()">${ik('folk')} ${t('invitation.andenmaade','Vælg en anden måde')}</button></div>`;
-}
-function gaveSend(){
-  const f = s.forberedelse; if(!f.invModtager){ flash('Skriv hvem overraskelsen er til.'); return; }
-  f.invStatus='sendt'; f.invVisMail=false; f.gaveSvar=null;
-  // Overraskelsen er sendt, og dermed er planlægningen slut — forsiden skifter
-  // til de tre punkter om at komme afsted (OD 11/8).
-  f.planlagt = true; gem();
-  nulstilHistorik(); gåTil('hjem');
-  infoModal('Gaven er nu sendt, og du har planlagt jeres tur.', 'Til overblikket');
-}
-/* Svaret på gaven kommer som en besked i appen. Afvises den, skal brugeren
-   selv aftale en ny dato — appen kan ikke forhandle på en overraskelse. */
-function gaveSvar(svar){
-  const f = s.forberedelse; f.gaveSvar = svar; gem(); tegn();
-  if(svar==='bekræftet') flash((f.invModtager||'Din rejsemakker')+' glæder sig. I er afsted.', 'puls');
-  else flash((f.invModtager||'Din rejsemakker')+' kan ikke den dag — aftal en ny dato direkte med hinanden.', 'klokke');
-}
-
 /* =============================================================
    FORBERED TUR — hver sektion er sin egen side, i rækkefølge
    ============================================================= */
@@ -6337,15 +5868,9 @@ function gaveSvar(svar){
 const SEKTIONER = [
   { id:'destination', fase:1, navn:'Destination',      under:'Hvor tager I hen?',        ikon:'nål',    farve:'#eadfcd', ifarve:'#8a5f3e',
     spørg:'Hvor skal turen gå hen?',      forklar:'Sæt en pin på kortet, søg en by — eller vælg et af vores testede steder.' },
-  /* Invitation er IKKE længere et trin (OD 13/8). Trinnet "Hvem vil du dele
-     denne arytme med?" spærrede vejen: man skulle tage stilling til
-     rejsemakkeren, før man måtte planlægge noget som helst. Nu går man fra
-     destinationen direkte til overblikket, og invitationen ligger som en rund
-     knap i bunden dér. Skærmen findes uændret — den er bare ikke i rækken.
-     Låsen består: vælger man aktivt "Planlæg sammen", er forplejning, bil og
-     personligt stadig låst indtil rejsemakkeren har bekræftet. Vælger man
-     ingenting, låser ingenting — invType er null, og afventerFællesPlan()
-     er kun sand for 'sammen'. */
+  /* Invitation er IKKE et trin (OD 13/8): "Hvem vil du dele denne arytme
+     med?" spærrede vejen, før man måtte planlægge noget som helst. Skærmen
+     er fjernet helt 12/10 (B1) — rejsemakkeren og ven-SMS'en afløste den. */
   { id:'mad',         fase:2, navn:'Forplejning',      under:'Tips fra vores egne ture', ikon:'kop',    farve:'#ece8dd', ifarve:'#6b705c',
     spørg:'Uden mad og drikke duer helten ikke', forklar:'Vores egne tips til aftensmad, morgenkaffe og det søde undervejs.' },
   { id:'bilen',       fase:2, navn:'Bil',              under:'Strøm, sengetøj og udstyr', ikon:'bil',   farve:'#e6e6d9', ifarve:'#5f6353',
@@ -7703,17 +7228,8 @@ function skærmMadMorgen(){
   </div>`;
 }
 /* Sidste trin i forplejningen. Det man har valgt, lander på pakkelisten — det
-   skal siges tydeligt, ikke bare ske. Planlægger man i skjul (gave), kom man
-   fra invitationens egen liste og skal tilbage dertil; ellers hjem til
-   overblikket. */
+   skal siges tydeligt, ikke bare ske. */
 function forplejningFærdig(){
-  const f = s.forberedelse;
-  const tilGave = f && f.invType==='gave' && f.invStatus!=='sendt';
-  if(tilGave){
-    tilbageTil('invitation');
-    infoModal('Tingene er nu føjet til jeres pakkeliste.', 'Videre');
-    return;
-  }
   /* Vi bliver stående på forplejningen bag modalen, indtil man har valgt vej —
      før hoppede appen hjem til overblikket og fortalte det bagefter. */
   valgModal('Forplejning på din arytme er nu planlagt. Emnerne er tilføjet pakkelisten. Du kan nu fortsætte planlægningen omkring bilen.', [
@@ -8144,7 +7660,7 @@ function åbnPakkeliste(id){ vælgTur(id); gåTil('klar-pakke'); }
    nogen har taget stilling til noget. */
 function tomKladde(a){
   const set = a.set || {};
-  return !a.destination && !set.mad && !set.bilen && !a.invType
+  return !a.destination && !set.mad && !set.bilen
     && !(a.pakkeTjek||[]).length && !(a.klarTjek||[]).length;
 }
 /* Ny tur oprettes både herfra og fra forsiden (OD 31/8). Den forrige bliver
@@ -10749,7 +10265,6 @@ function tegnSkærmen(){
        besøg på profilen koster ingenting. */
     case aktivSkærm==='profil':       skærmProfil(); partnerOpdaterStatus(); partnerTjekModtaget(); break;
     case aktivSkærm==='slet-konto':   skærmSletKonto(); break;
-    case aktivSkærm==='invitation':      skærmInvitation(); break;
     /* Gæsten på turen (KN 6/9) — to trin: hvem, og hvem pakker hvad. */
     case aktivSkærm==='ven-inviter':     skærmVenInviter(); break;
     case aktivSkærm==='ven-fordel':      skærmVenFordel(); break;

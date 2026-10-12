@@ -46,17 +46,19 @@
   var MAKS_BREDDE = 0.33, MAKS_HOEJDE = 0.25, MAKS_SMAL = 0.04;
   var KVALITET = 0.82;
 
-  /* APPEN HENTER MOTOREN FRA BAGRUMMET (5/10). 22 MB i app-pakken ville
-     betale hver eneste kunde for noget, kun to admins bruger. Filerne ligger
-     allerede på arytmi.com, og GitHub Pages sender `Access-Control-Allow-
-     Origin: *`, så webviewen må hente dem.
-     CSP'EN I index.html TILLADER DET siden 5/10 (Kennets beslutning):
-     script-src og connect-src har https://arytmi.com, og script-src har
-     'wasm-unsafe-eval'. Fjernes én af dem igen, kan motoren ikke hentes,
-     og laegOpBillede() siger fra, FØR noget lægges op. */
-  var KILDE = 'https://arytmi.com/admin/';
-  var MODEL = KILDE + 'vendor/nummerplader/yolo-v9-t-640-license-plates-end2end.onnx';
-  var ORT = KILDE + 'vendor/ort/ort.wasm.min.js';
+  /* MOTOREN LIGGER I APPENS EGEN vendor/ (klar-til-live 2.4, 12/10).
+     Indtil da blev den hentet fra bagrummet på arytmi.com, og appens CSP
+     måtte stole på et offentligt repo med scripts. Nu kommer alt fra
+     app.arytmi.com selv, og arytmi.com er ude af CSP'en.
+     De 22 MB koster ingen kunde noget: lav-www.js holder vendor/ort/ og
+     vendor/nummerplader/ UDE af service workerens skal, så de hentes
+     først, når en admin lægger et billede op.
+     CSP'en skal have 'self' i connect-src (modellen og .wasm hentes med
+     fetch) og 'wasm-unsafe-eval' i script-src. Fjernes én, kan motoren
+     ikke hentes, og laegOpBillede() siger fra, FØR noget lægges op. */
+  var KILDE = new URL('vendor/', document.baseURI).href;
+  var MODEL = KILDE + 'nummerplader/yolo-v9-t-640-license-plates-end2end.onnx';
+  var ORT = KILDE + 'ort/ort.wasm.min.js';
 
   var session = null;
 
@@ -78,7 +80,7 @@
          og falder lydløst tilbage — med en advarsel i konsollen, som ligner
          en fejl. */
       window.ort.env.wasm.numThreads = 1;
-      window.ort.env.wasm.wasmPaths = KILDE + 'vendor/ort/';
+      window.ort.env.wasm.wasmPaths = KILDE + 'ort/';
       return window.ort.InferenceSession.create(MODEL);
     });
     session.catch(function(){ session = null; });

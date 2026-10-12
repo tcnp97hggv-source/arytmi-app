@@ -36,14 +36,14 @@
        (sync.js, kanalen 'arytmi-deling'). Uden den linje holder delingen
        op med at virke, og fejlen ser ud som et netværksproblem.
 
-     · https://arytmi.com og 'wasm-unsafe-eval' (KN 5/10: "fint med, at
-       sikkerhedspolitikken åbner"). Editorens billedupload slører
-       nummerplader med en motor, der hentes fra bagrummet på arytmi.com
-       (redaktoer-plader.js): scriptet og dets .mjs i script-src, modellen
-       og .wasm-filen i connect-src, og 'wasm-unsafe-eval' for at måtte
-       oversætte WebAssembly. Det er IKKE 'unsafe-eval' — almindelig eval()
-       er stadig spærret. Kun admins henter motoren, men politikken gælder
-       alle; åbningen er arytmi.com, som vi selv udgiver.
+     · 'self' i connect-src og 'wasm-unsafe-eval' (klar-til-live 2.4, 12/10).
+       Editorens billedupload slører nummerplader med en motor i appens
+       egen vendor/ort/ og vendor/nummerplader/ (redaktoer-plader.js):
+       modellen og .wasm-filen hentes med fetch fra appen selv, og
+       'wasm-unsafe-eval' er for at måtte oversætte WebAssembly. Det er IKKE
+       'unsafe-eval' — almindelig eval() er stadig spærret. Indtil 12/10 kom
+       motoren fra bagrummet på arytmi.com, og CSP'en stolede på et
+       offentligt repo med scripts. Det gør den ikke længere.
 
      · manifest-src og worker-src (K22, 6/10) — Arytmi på hjemmeskærmen.
        Manifestet (navn, ikon, fuld skærm) og service workeren (sw.js) er
@@ -64,13 +64,13 @@
      stadig kommer igennem. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'none';
-  script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://arytmi.com;
+  script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval';
   style-src 'self' 'unsafe-inline';
   img-src 'self' data: https://vxleyvtumbwtkejoiaev.supabase.co https://*.tile.openstreetmap.org;
   font-src 'self';
   manifest-src 'self';
   worker-src 'self';
-  connect-src https://vxleyvtumbwtkejoiaev.supabase.co wss://vxleyvtumbwtkejoiaev.supabase.co https://adressevaelger.dk https://arytmi.com https://o4512067730407424.ingest.de.sentry.io;
+  connect-src 'self' https://vxleyvtumbwtkejoiaev.supabase.co wss://vxleyvtumbwtkejoiaev.supabase.co https://adressevaelger.dk https://o4512067730407424.ingest.de.sentry.io;
   base-uri 'none';
   form-action 'none';
   object-src 'none'">
@@ -153,7 +153,7 @@
 <!-- Listernes tekstnøgler (5/10). FØR app.js — app.js bygger listerne med den. -->
 <script src="tekstdata.js?v=20261005a"></script>
 <script src="redaktoer.js?v=20261005b"></script>
-<script src="redaktoer-plader.js?v=20261005b"></script>
-<script src="app.js?v=20261011j"></script>
+<script src="redaktoer-plader.js?v=20261012a"></script>
+<script src="app.js?v=20261012a"></script>
 </body>
 </html>
