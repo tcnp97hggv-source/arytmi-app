@@ -4950,6 +4950,7 @@ function skærmHjemKlar(){
   const dage = dageTil(f.dato);
   const stort = dage===0 ? 'I dag' : dage===1 ? 'I morgen' : dage>1 ? dage : 'Snart';
   $('indhold').innerHTML = `
+  <div class="hjem-flade">
   <div class="ned-hero ned-rejse">
     ${heroScene('klar', 420)}
     <div class="ned-lag">
@@ -4989,6 +4990,7 @@ function skærmHjemKlar(){
       </div>
     </div>
   </div>
+  </div>
   ${deltVarsel()}
   ${værktøjskasse()}`;
 }
@@ -5022,6 +5024,7 @@ function skærmHjemNedtælling(){
        </div>
        ${plan.map(punkt).join('')}`;
   $('indhold').innerHTML = `
+  <div class="hjem-flade">
   <div class="ned-hero ned-rejse">
     ${heroScene('klar', 420)}
     <div class="ned-lag">
@@ -5092,6 +5095,7 @@ function skærmHjemNedtælling(){
         <button class="knap stille fare" onclick="annullerForberedelse()">${t('faelles.annullertur','Annullér turen')}</button>
       </div>
     </div>
+  </div>
   </div>
   ${deltVarsel()}
   ${værktøjskasse()}`;
@@ -8063,24 +8067,6 @@ function partnerFelt(felt, værdi){
   const k = $('partnerKnap');
   if(k) k.disabled = !(s.profil.partner.navn && s.profil.partner.email);
 }
-/* Teksterne i invitationsmailen. De vises ikke i appen, men de står HER,
-   så de findes i bagrummet og kan rettes dér. `inviter-partner` læser dem
-   fra det udgivne bundt (_shared/rejsemakker.ts) og har de samme
-   faldbakker — test/rejsemakker.test.mjs holder de to ens. */
-function rejsemakkerMailTekster(){
-  return [
-    t('partner.mailemne','{fra} vil dele Arytmi med dig'),
-    t('partner.mailhej','Hej {navn},'),
-    t('partner.mailbrod','{fra} har inviteret dig som fast rejsemakker i Arytmi. Som rejsemakkere deler I appen og de ture, I planlægger sammen — retter den ene, står det hos den anden.'),
-    t('partner.mailtrin1','Læg Arytmi på din hjemmeskærm. Åbn siden på telefonen.'),
-    t('partner.mailios','iPhone: åbn siden i Safari, tryk på Del-knappen, og vælg "Føj til hjemmeskærm".'),
-    t('partner.mailandroid','Android: tryk på de tre prikker øverst til højre, og vælg "Føj til startskærm" eller "Installer app".'),
-    t('partner.mailtrin2','Åbn Arytmi fra hjemmeskærmen, og tryk "Opret dig". Skriv den mailadresse, denne mail er sendt til, og tryk "Send mig en kode". Skriv koden, og vælg dit kodeord.'),
-    t('partner.mailtrin2kendt','Åbn Arytmi fra hjemmeskærmen, og log ind med din mailadresse. Har du aldrig valgt et kodeord, så tryk "Opret dig" i stedet.'),
-    t('partner.mailtrin3','Sig ja tak, når appen spørger, om du vil dele Arytmi med {fra}. Så er I koblet sammen.'),
-    t('partner.mailudloeb','Invitationen gælder i {dage} dage. Kender du ikke {fra}, kan du se bort fra mailen — så sker der ingenting.')
-  ];
-}
 /* INVITATIONEN ER RIGTIG NU (fase 3, 11/9).
 
    Før satte den her funktion `status = 'sendt'` i localStorage, tegnede
@@ -10280,6 +10266,9 @@ function tegnSkærmen(){
     case aktivSkærm.startsWith('red-sted-'): skærmRedSted(aktivSkærm.slice(9)); break;
     default: skærmHjem();
   }
+  /* Planlagte ture (KN 14/10): .hjem-flade holder indholdet over værktøjskassen mindst lige så højt
+     som forsidens hero, så kassen altid ligger nederst, under folden - også når turen er
+     planlagt og indholdet er kort. Se .hjem-flade i app.css. */
   /* Forsiden havde padding-bottom:0, fordi den var ét helt skærmbillede uden
      noget under sig — man skulle ikke kunne scrolle på et tomt felt. Med
      værktøjskassen nederst (KN 6/9) ER der noget under hero'en på ALLE tre

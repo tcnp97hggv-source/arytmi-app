@@ -462,11 +462,11 @@
   /* Fri af uret og kameraøen. En hero øverst på skærmen trækkes op under
      dem igen — billedet skal gå helt til kanten — og dens tekst rykkes ned. */
   .indhold{padding-top:var(--top)}
-  .indhold > .hero:first-child,.indhold > .ned-hero:first-child{margin-top:calc(-1 * var(--top))}
+  .indhold > .hero:first-child,.indhold > .ned-hero:first-child,.indhold > .hjem-flade > .ned-hero:first-child{margin-top:calc(-1 * var(--top))}
   .indhold > .hero:first-child .overlay{padding-top:calc(20px + var(--top))}
   /* Nedtællingen og loggen har deres egen hero (.ned-hero). Den blev trukket
      op under uret sammen med de andre, men teksten fulgte ikke med ned. */
-  .indhold > .ned-hero:first-child .ned-lag{padding-top:calc(20px + var(--top))}
+  .indhold > .ned-hero:first-child .ned-lag,.indhold > .hjem-flade > .ned-hero:first-child .ned-lag{padding-top:calc(20px + var(--top))}
   /* HEADEREN BAG URET (OD 4/10: "en header så ur, batteri osv ikke kommer
      til at ligge oveni app indholdet"). .indhold er selve rullefladen, så
      dens margen i toppen ruller med — og så gled teksten op under uret.
@@ -581,6 +581,12 @@
      rettet to gange 13/9: foerste forsoeg satte kun det ene, og saa stak
      overskriften stadig op paa en hoej skaerm. */
   .hero.fuld.med-vaerktoej{height:calc(var(--skaerm) - (var(--nav-h) - 26px) - var(--vk-kig))}
+  /* PLANLAGTE TURE (KN 14/10): "Når jeg har planlagt en tur ligger værktøjskassen her oppe. Det
+     ser dumt ud, den skal altid ligge i bunden." Nedtællingen og "Snart afsted" er kortere end
+     forsiden, så kassen lå lige under indholdet, midt på skærmen. .hjem-flade er den samme højde
+     som .hero.fuld.med-vaerktoej (SAMME formel: ét tal, ikke to), så kassens kant kigger frem
+     nederst, og resten ligger under folden. Er indholdet højere end skærmen, vokser fladen med. */
+  .hjem-flade{min-height:calc(var(--skaerm) - (var(--nav-h) - 26px) - var(--vk-kig) - var(--top))}
   /* LAVERE, OG SÅ ET HOP (KN 28/9): "værktøjskassen kom længere ned under
      menubjælken. Måske kan den bounce lidt op for at gøre opmærksom på sig
      selv." Nu kigger kun 38 px frem: kanten og grebet (vinket begynder 40 px inde, så 38 er loftet). Vinket ligger gemt
