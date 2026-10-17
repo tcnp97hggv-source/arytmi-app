@@ -4425,7 +4425,17 @@ function turSlutDato(a){
   }
   return a.dato;
 }
+/* SERVEREN FLYTTER TUREN, NÅR HUN ER LOGGET IND (0069, Kennet 17/10).
+   Gjorde telefonen det selv, flyttede hver enhed turen med sit eget id —
+   hver tur stod to gange — og en rejsemakkers tur blev liggende som
+   kommende, til hendes telefon blev åbnet. Nu gør `arkiver_faerdige_ture`
+   det hver time, og næste hentning bringer resultatet ned.
+   Flyttede telefonen den alligevel her fra en gammel kopi, kunne den
+   skrive en tom tur oven i den, rejsemakkeren har anmeldt på serveren.
+   Uden login (og i testene) flytter appen stadig selv — med turens eget
+   id, ligesom serveren. */
 function logAfholdteTure(){
+  if(window.ArytmiSync && ArytmiSync.status && ArytmiSync.status().klient) return;
   const iDag = new Date().toISOString().slice(0,10);
   let ændret = false;
   s.arytmer.slice().forEach(a => {
@@ -4439,7 +4449,7 @@ function logAfholdteTure(){
     if(fremmedRække('ture', a.id)) return;
     if(!tomKladde(a)){
       s.ture.unshift({
-        id: M.nytId('t'),
+        id: a.id,
         sted: a.destination ? a.destination.navn : 'Jeres sted',
         dato: a.dato, score: null, kommentar: '', minde: '', plan: turSnapshot(a)
       });
@@ -4469,7 +4479,7 @@ function anmeldDenneTur(){
     return;
   }
   bekræft('Anmeld turen nu? Så er den slut: den flytter fra Kommende ture ned under Afholdte ture i Dine arytmer.', ()=>{
-    const nyId = M.nytId('t');
+    const nyId = f.id;   // turens eget id, som serveren bruger (0069)
     s.ture.unshift({
       id: nyId,
       sted: f.destination ? f.destination.navn : 'Jeres sted',
@@ -10808,14 +10818,18 @@ async function lægBeskeder(){
 }
 /* Tryk på beskeden: turen er allerede (eller bliver nu) flyttet ned i
    loggen af logAfholdteTure() og har fået et nyt id dér. Den findes igen
-   på sted og dato; ellers åbnes den nyeste tur, der ikke er anmeldt. */
+   på sted og dato — også når den allerede er anmeldt, så et tryk nummer to
+   åbner "Ret anmeldelsen" på DEN tur. Kennet 17/10: andet tryk på mailen
+   åbnede demoturen, fordi kun de uanmeldte blev søgt. Findes den ikke på
+   sted, tages en uanmeldt fra samme dag; ellers bare loggen. */
 async function åbnAnmeldelseFraBesked(x){
   if(!s.onboarded) return;
   logAfholdteTure();
   nulstilHistorik(); gåTil('log');
   const find = () => {
-    const uanmeldte = (s.ture || []).filter(tur => !tur.score);
-    return { uanmeldte, tur: uanmeldte.find(tur => tur.sted === x.sted && tur.dato === x.dato) };
+    const ture = s.ture || [];
+    return { uanmeldte: ture.filter(tur => !tur.score && tur.dato === x.dato),
+             tur: ture.find(tur => tur.sted === x.sted && tur.dato === x.dato) };
   };
   let { uanmeldte, tur } = find();
   /* Beskeden kommer nu fra serveren (K22, fase C). Har telefonen ikke
