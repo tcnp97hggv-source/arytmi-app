@@ -3987,7 +3987,11 @@ function skærmHvorfra(){
         <input type="text" id="spAdr" placeholder="${esc(t('hvorfra.soegadresse','Søg by eller adresse …'))}" value="${esc(f.startSøg||'')}" autocomplete="off" spellcheck="false" oninput="startSkriv(this.value)">
         <div id="start-forslag"></div>
       </div>
-      ${f.startNavn?`<div class="sted-chips" style="margin-top:14px"><span class="sted-chip valgt">${ik('nål')} ${esc(f.startNavn)}</span></div>`:''}
+      <!-- Fra GPS siger chippen, at placeringen er FUNDET (KN 23/10):
+           "Din placering" lignede en knap, der ikke havde gjort noget.
+           startNavn bliver "Din placering", for den læses videre i
+           "kørsel fra …". -->
+      ${f.startNavn?`<div class="sted-chips" style="margin-top:14px"><span class="sted-chip valgt">${ik(f.startGPS?'gps':'nål')} ${esc(f.startGPS?t('hvorfra.gpsfundet','Lokation fundet'):f.startNavn)}</span></div>`:''}
     </div>
     ${wizardBund(t('faelles.videre','Videre'),"gåTil('hvorlangt')", !!f.startNavn)}
     ${annullérLinje()}
@@ -3995,7 +3999,7 @@ function skærmHvorfra(){
   startTegnForslag();
 }
 function startGPS(){
-  const sæt = (navn,xy)=>{ s.forberedelse.startNavn=navn; s.forberedelse.startXY=xy; gem(); tegn(); flash(navn+' sat som startpunkt.','gps'); };
+  const sæt = (navn,xy)=>{ s.forberedelse.startNavn=navn; s.forberedelse.startXY=xy; s.forberedelse.startGPS=true; gem(); tegn(); flash(navn+' sat som startpunkt.','gps'); };
   /* ⚠️ HER STOD EN FALSK RESERVE: fandt telefonen ingen placering, blev
      startpunktet sat til "Din placering (demo — Aarhus)" — et punkt i
      Aarhus, som resten af guiden så målte afstande fra, som om det var
@@ -4101,7 +4105,7 @@ function vælgStartBy(nr){
   if(!b || !f) return;
   startForslag = []; startAdresser = []; startVeje = [];
   const xy = geoTilXY(b.lat, b.lon);
-  f.startNavn = b.navn;
+  f.startNavn = b.navn; f.startGPS = false;
   f.startSøg = '';
   f.startXY = { x: Math.round(xy.x), y: Math.round(xy.y) };
   gem(); tegn();
@@ -4126,7 +4130,7 @@ async function vælgStartAdresse(nr){
   }
   const xy = geoTilXY(punkt.lat, punkt.lon);
   startBesked = '';
-  f.startNavn = a.tekst;
+  f.startNavn = a.tekst; f.startGPS = false;
   f.startSøg = '';
   f.startXY = { x: Math.round(xy.x), y: Math.round(xy.y) };
   gem(); tegn();
